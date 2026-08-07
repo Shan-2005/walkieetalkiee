@@ -1,32 +1,34 @@
 /* ==========================================================================
-   Robofest 2.0 Walkie-Talkie — Nothing OS Inspired Design System
+   Robofest 2.0 Walkie-Talkie — Nothing OS Glassmorphism Style
    ========================================================================== */
 
 :root {
   --bg-primary: #000000;
-  --bg-surface: #0A0A0A;
-  --bg-surface-hover: #141414;
-  --bg-card: #0D0D0D;
+  --bg-surface: rgba(10, 10, 10, 0.4);
+  --bg-surface-hover: rgba(20, 20, 20, 0.6);
+  --bg-card: rgba(15, 15, 15, 0.5);
+  
   --glass-border: rgba(255, 255, 255, 0.08);
-  --glass-border-hover: rgba(255, 255, 255, 0.15);
+  --glass-border-hover: rgba(255, 255, 255, 0.16);
+  --glass-blur: blur(24px) saturate(160%);
   
   --text-primary: #FFFFFF;
-  --text-secondary: #808080;
-  --text-muted: #4A4A4A;
+  --text-secondary: #A0A0A0;
+  --text-muted: #555555;
   
   --accent-red: #D71921;
   --accent-white: #FFFFFF;
   --accent-green: #00FF85;
 
   --font-body: 'Space Grotesk', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-  --font-dot: 'Silkscreen', monospace;
+  --font-dot: 'Doto', sans-serif;
   --font-mono: 'Space Mono', monospace;
 
   --radius-lg: 0px;
   --radius-md: 0px;
   --radius-sm: 0px;
 
-  --transition-smooth: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-smooth: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 * {
@@ -39,6 +41,11 @@
 
 body {
   background-color: var(--bg-primary);
+  /* Tech dot-matrix background pattern with soft red glow hotspot */
+  background-image: 
+    radial-gradient(circle at 50% 30%, rgba(215, 25, 33, 0.08), transparent 50%),
+    radial-gradient(rgba(255, 255, 255, 0.04) 1px, transparent 1px);
+  background-size: 100% 100%, 20px 20px;
   color: var(--text-primary);
   font-family: var(--font-body);
   min-height: 100vh;
@@ -55,7 +62,11 @@ body {
   position: relative;
   display: flex;
   flex-direction: column;
-  background: var(--bg-primary);
+  background: rgba(0, 0, 0, 0.7);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border-left: 1px solid var(--glass-border);
+  border-right: 1px solid var(--glass-border);
 }
 
 /* --- Views Management --- */
@@ -63,7 +74,7 @@ body {
   flex: 1;
   display: flex;
   flex-direction: column;
-  padding: 20px;
+  padding: 24px;
   opacity: 1;
   transform: translateY(0);
   transition: var(--transition-smooth);
@@ -89,77 +100,82 @@ body {
   flex-direction: column;
   justify-content: space-between;
   text-align: center;
-  padding: 20px 0;
+  padding: 30px 0 10px;
 }
 
 .brand-section {
-  margin-top: 40px;
+  margin-top: 30px;
 }
 
 .app-logo-wrap {
-  width: 80px;
-  height: 80px;
-  margin: 0 auto 20px;
-  border: 2px solid var(--accent-red);
+  width: 72px;
+  height: 72px;
+  margin: 0 auto 24px;
+  border: 1px solid var(--accent-red);
   display: flex;
   align-items: center;
   justify-content: center;
+  background: rgba(215, 25, 33, 0.05);
 }
 
 .app-logo-icon {
-  font-size: 40px;
+  font-size: 36px;
   color: var(--accent-red);
 }
 
 .app-title {
   font-family: var(--font-dot);
-  font-size: 1.8rem;
-  font-weight: 700;
-  letter-spacing: 4px;
+  font-size: 2.5rem;
+  font-weight: 900;
+  letter-spacing: -1px;
   color: var(--text-primary);
-  margin-bottom: 6px;
+  margin-bottom: 2px;
+  line-height: 1.1;
 }
 
 .app-subtitle {
   font-family: var(--font-mono);
-  font-size: 0.75rem;
+  font-size: 0.7rem;
   color: var(--text-secondary);
-  text-transform: lowercase;
-  letter-spacing: 3px;
+  text-transform: uppercase;
+  letter-spacing: 2px;
 }
 
+/* Glassmorphic input card */
 .glass-card {
   background: var(--bg-card);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
   border: 1px solid var(--glass-border);
-  padding: 28px 20px;
+  padding: 32px 24px;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.5);
 }
 
 .login-form {
   display: flex;
   flex-direction: column;
-  gap: 18px;
+  gap: 20px;
 }
 
 .input-group {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: 6px;
+  gap: 8px;
 }
 
 .input-group label {
   font-family: var(--font-mono);
-  font-size: 0.7rem;
+  font-size: 0.65rem;
   color: var(--text-secondary);
-  font-weight: 400;
   text-transform: uppercase;
   letter-spacing: 1.5px;
 }
 
 .styled-input, .styled-select {
   width: 100%;
-  padding: 14px 16px;
-  background: transparent;
+  padding: 16px;
+  background: rgba(255, 255, 255, 0.03);
   border: 1px solid var(--glass-border);
   color: #FFF;
   font-family: var(--font-body);
@@ -170,6 +186,8 @@ body {
 
 .styled-input:focus, .styled-select:focus {
   border-color: var(--accent-red);
+  background: rgba(255, 255, 255, 0.06);
+  box-shadow: 0 0 10px rgba(215, 25, 33, 0.15);
 }
 
 .styled-select option {
@@ -178,16 +196,16 @@ body {
 }
 
 .primary-btn {
-  margin-top: 8px;
+  margin-top: 10px;
   width: 100%;
   padding: 16px;
-  border: 2px solid var(--accent-red);
-  background: transparent;
+  border: 1px solid var(--accent-red);
+  background: rgba(215, 25, 33, 0.05);
   color: var(--accent-red);
   font-family: var(--font-dot);
-  font-size: 0.85rem;
-  font-weight: 700;
-  letter-spacing: 1px;
+  font-size: 1.1rem;
+  font-weight: 800;
+  letter-spacing: 0.5px;
   cursor: pointer;
   transition: var(--transition-smooth);
 }
@@ -212,7 +230,7 @@ body {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 12px 0 24px;
+  padding: 8px 0 20px;
   border-bottom: 1px solid var(--glass-border);
   margin-bottom: 20px;
 }
@@ -220,20 +238,21 @@ body {
 .user-info {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
 }
 
 .user-avatar-main {
-  width: 40px;
-  height: 40px;
+  width: 38px;
+  height: 38px;
   border: 1px solid var(--accent-red);
   color: var(--accent-red);
   display: flex;
   align-items: center;
   justify-content: center;
   font-family: var(--font-dot);
-  font-weight: 700;
-  font-size: 0.85rem;
+  font-weight: 800;
+  font-size: 1rem;
+  background: rgba(215, 25, 33, 0.05);
 }
 
 .user-text h2 {
@@ -256,7 +275,8 @@ body {
   font-family: var(--font-mono);
   font-size: 0.65rem;
   padding: 6px 12px;
-  border: 1px solid rgba(0, 255, 133, 0.3);
+  border: 1px solid rgba(0, 255, 133, 0.2);
+  background: rgba(0, 255, 133, 0.04);
   color: var(--accent-green);
   letter-spacing: 1px;
 }
@@ -276,9 +296,10 @@ body {
 
 .section-title {
   font-family: var(--font-dot);
-  font-size: 0.75rem;
+  font-size: 0.95rem;
+  font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 3px;
+  letter-spacing: 1px;
   color: var(--text-secondary);
   margin-bottom: 16px;
 }
@@ -286,20 +307,22 @@ body {
 .channel-grid {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
-  gap: 8px;
+  gap: 10px;
   padding-bottom: 20px;
 }
 
+/* Glassmorphic cards */
 .channel-card {
   background: var(--bg-card);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
   border: 1px solid var(--glass-border);
-  padding: 16px;
+  padding: 18px 16px;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
   cursor: pointer;
   position: relative;
-  overflow: hidden;
   transition: var(--transition-smooth);
 }
 
@@ -308,31 +331,34 @@ body {
   position: absolute;
   top: 0;
   left: 0;
-  width: 3px;
+  width: 2px;
   height: 100%;
   background-color: var(--accent-red);
-  opacity: 0.4;
+  opacity: 0.25;
   transition: var(--transition-smooth);
 }
 
 .channel-card:active, .channel-card:hover {
-  border-color: var(--accent-red);
+  border-color: var(--glass-border-hover);
+  background: var(--bg-surface-hover);
 }
 
 .channel-card:active::before, .channel-card:hover::before {
   opacity: 1;
+  width: 4px;
 }
 
 .broadcast-card {
   grid-column: span 2;
-  border: 1px solid rgba(215, 25, 33, 0.4);
+  border-color: rgba(215, 25, 33, 0.25);
+  background: rgba(215, 25, 33, 0.02);
 }
 
 .card-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 10px;
+  margin-bottom: 12px;
 }
 
 .channel-icon {
@@ -358,18 +384,18 @@ body {
 
 .channel-name {
   font-family: var(--font-body);
-  font-size: 0.9rem;
+  font-size: 0.95rem;
   font-weight: 600;
   margin-bottom: 4px;
-  letter-spacing: 0.5px;
+  letter-spacing: 0.3px;
 }
 
 .channel-location {
   font-family: var(--font-mono);
-  font-size: 0.6rem;
-  color: var(--text-muted);
+  font-size: 0.65rem;
+  color: var(--text-secondary);
   line-height: 1.3;
-  letter-spacing: 0.3px;
+  letter-spacing: 0.2px;
 }
 
 .channel-date {
@@ -377,12 +403,12 @@ body {
   margin-top: 6px;
   font-family: var(--font-mono);
   font-size: 0.6rem;
-  color: var(--text-secondary);
+  color: var(--text-muted);
   letter-spacing: 0.5px;
 }
 
 .card-footer {
-  margin-top: 10px;
+  margin-top: 14px;
 }
 
 .join-btn {
@@ -406,7 +432,7 @@ body {
   display: flex;
   flex-direction: column;
   justify-content: space-between;
-  padding-bottom: 30px;
+  padding-bottom: 20px;
 }
 
 .top-nav {
@@ -417,7 +443,9 @@ body {
 }
 
 .icon-btn {
-  background: transparent;
+  background: rgba(255, 255, 255, 0.02);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
   border: 1px solid var(--glass-border);
   color: #FFF;
   width: 40px;
@@ -440,9 +468,9 @@ body {
 
 .channel-title-group h2 {
   font-family: var(--font-dot);
-  font-size: 1rem;
+  font-size: 1.15rem;
   font-weight: 700;
-  letter-spacing: 2px;
+  letter-spacing: 1px;
 }
 
 .channel-title-group p {
@@ -456,16 +484,18 @@ body {
   height: 2px;
   width: 100%;
   background: var(--accent-red);
-  opacity: 0.5;
+  opacity: 0.6;
   margin-bottom: 16px;
 }
 
-/* Active Members Bar */
+/* Active Members Bar - Glassmorphism style */
 .members-bar {
   display: flex;
   align-items: center;
   gap: 12px;
   background: var(--bg-card);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
   border: 1px solid var(--glass-border);
   padding: 10px 14px;
   margin-bottom: 20px;
@@ -479,15 +509,16 @@ body {
 }
 
 .user-avatar {
-  width: 30px;
-  height: 30px;
+  width: 28px;
+  height: 28px;
   border: 1px solid var(--glass-border);
+  background: rgba(255, 255, 255, 0.03);
   display: flex;
   align-items: center;
   justify-content: center;
   font-family: var(--font-dot);
   font-size: 0.65rem;
-  font-weight: 700;
+  font-weight: 800;
   color: var(--accent-red);
   flex-shrink: 0;
 }
@@ -508,10 +539,11 @@ body {
 }
 
 .speaker-avatar {
-  width: 64px;
-  height: 64px;
+  width: 60px;
+  height: 60px;
   margin: 0 auto 12px;
-  border: 2px solid var(--accent-red);
+  border: 1px solid var(--accent-red);
+  background: rgba(215, 25, 33, 0.05);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -521,7 +553,7 @@ body {
 
 @keyframes pulseAvatar {
   0% { box-shadow: 0 0 0px var(--accent-red); }
-  100% { box-shadow: 0 0 20px var(--accent-red); }
+  100% { box-shadow: 0 0 16px rgba(215, 25, 33, 0.4); }
 }
 
 /* 5-Bar Voice Waveform Animation */
@@ -553,13 +585,13 @@ body {
 }
 
 /* ==========================================================================
-   PTT Circular Button Controls
+   PTT Glassmorphic Controls
    ========================================================================== */
 .ptt-container {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 14px;
+  gap: 16px;
 }
 
 .ptt-btn-outer {
@@ -571,12 +603,15 @@ body {
   justify-content: center;
 }
 
+/* Glassmorphic Talk Button */
 .ptt-btn {
-  width: 120px;
-  height: 120px;
+  width: 116px;
+  height: 116px;
   border-radius: 50%;
-  background: var(--bg-primary);
-  border: 2px solid var(--text-muted);
+  background: rgba(255, 255, 255, 0.02);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--glass-border);
   color: var(--text-primary);
   display: flex;
   flex-direction: column;
@@ -595,9 +630,9 @@ body {
 
 .ptt-btn-label {
   font-family: var(--font-dot);
-  font-size: 0.55rem;
+  font-size: 0.7rem;
   font-weight: 700;
-  letter-spacing: 2px;
+  letter-spacing: 0.5px;
 }
 
 /* PTT Ripple Rings */
@@ -614,13 +649,13 @@ body {
 /* PTT Button Dynamic States */
 .ptt-btn.state-requesting {
   border-color: var(--text-secondary);
-  box-shadow: 0 0 20px rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.05);
 }
 
 .ptt-btn.state-transmitting {
   border-color: var(--accent-red);
   background: rgba(215, 25, 33, 0.15);
-  box-shadow: 0 0 30px rgba(215, 25, 33, 0.3);
+  box-shadow: 0 0 30px rgba(215, 25, 33, 0.25);
 }
 
 .ptt-btn.state-transmitting .ptt-btn-icon {
@@ -634,6 +669,7 @@ body {
 
 .ptt-btn.state-receiving {
   border-color: var(--accent-green);
+  background: rgba(0, 255, 133, 0.08);
   box-shadow: 0 0 20px rgba(0, 255, 133, 0.15);
 }
 
@@ -679,8 +715,10 @@ body {
 
 .toast {
   background: var(--bg-card);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
   border: 1px solid var(--glass-border);
-  padding: 12px 16px;
+  padding: 14px 18px;
   display: flex;
   align-items: center;
   gap: 10px;
@@ -689,6 +727,7 @@ body {
   font-size: 0.75rem;
   letter-spacing: 0.3px;
   animation: slideDown 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
 }
 
 .toast-warning { border-left: 3px solid var(--accent-red); }
@@ -708,7 +747,7 @@ body {
 
 /* --- Toggle Mode Switch --- */
 .toggle-mode-container {
-  margin-top: 10px;
+  margin-top: 6px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -732,7 +771,7 @@ body {
   position: absolute;
   cursor: pointer;
   top: 0; left: 0; right: 0; bottom: 0;
-  background-color: var(--bg-card);
+  background-color: rgba(255, 255, 255, 0.03);
   border: 1px solid var(--glass-border);
   transition: .3s cubic-bezier(0.4, 0, 0.2, 1);
 }

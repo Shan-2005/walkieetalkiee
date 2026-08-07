@@ -1,18 +1,23 @@
 /* ==========================================================================
-   Robofest 2.0 Receiver Command Center — Nothing OS Inspired CSS
+   Robofest 2.0 Receiver Command Center — Nothing OS Glassmorphism Style
    ========================================================================== */
 
 :root {
   --bg-dark: #000000;
-  --bg-panel: #0A0A0A;
+  --bg-panel: rgba(10, 10, 10, 0.45);
   --border-panel: rgba(255, 255, 255, 0.08);
+  
+  --glass-border: rgba(255, 255, 255, 0.08);
+  --glass-border-hover: rgba(255, 255, 255, 0.16);
+  --glass-blur: blur(24px) saturate(160%);
+  
   --accent-red: #D71921;
   --accent-green: #00FF85;
   --text-main: #FFFFFF;
   --text-dim: #808080;
   
   --font-body: 'Space Grotesk', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-  --font-dot: 'Silkscreen', monospace;
+  --font-dot: 'Doto', sans-serif;
   --font-mono: 'Space Mono', monospace;
 }
 
@@ -26,6 +31,11 @@
 
 body {
   background-color: var(--bg-dark);
+  /* Tech dot-matrix background pattern with soft red glow hotspot */
+  background-image: 
+    radial-gradient(circle at 50% 30%, rgba(215, 25, 33, 0.08), transparent 50%),
+    radial-gradient(rgba(255, 255, 255, 0.04) 1px, transparent 1px);
+  background-size: 100% 100%, 20px 20px;
   color: var(--text-main);
   font-family: var(--font-body);
   min-height: 100vh;
@@ -59,7 +69,8 @@ body {
 .unlock-pulse-icon {
   width: 80px;
   height: 80px;
-  border: 2px solid var(--accent-red);
+  border: 1px solid var(--accent-red);
+  background: rgba(215, 25, 33, 0.05);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -69,13 +80,12 @@ body {
 
 .unlock-btn {
   padding: 16px 32px;
-  border: 2px solid var(--accent-red);
-  background: transparent;
+  border: 1px solid var(--accent-red);
+  background: rgba(215, 25, 33, 0.05);
   color: var(--accent-red);
   font-family: var(--font-dot);
-  font-size: 0.95rem;
-  font-weight: 700;
-  letter-spacing: 1px;
+  font-size: 1.1rem;
+  font-weight: 800;
   cursor: pointer;
   transition: all 0.2s ease;
 }
@@ -93,9 +103,11 @@ body {
   gap: 16px;
 }
 
-/* Header Section */
+/* Header Section - Glassmorphic */
 .header-card {
   background: var(--bg-panel);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
   border: 1px solid var(--border-panel);
   padding: 20px;
   display: flex;
@@ -103,13 +115,14 @@ body {
   align-items: center;
   justify-content: space-between;
   gap: 14px;
+  box-shadow: 0 16px 32px rgba(0, 0, 0, 0.4);
 }
 
 .brand-info h1 {
   font-family: var(--font-dot);
-  font-size: 1.5rem;
-  font-weight: 700;
-  letter-spacing: 3px;
+  font-size: 2.2rem;
+  font-weight: 900;
+  letter-spacing: -0.5px;
 }
 
 .brand-info p {
@@ -124,7 +137,7 @@ body {
   min-width: 200px;
   max-width: 450px;
   height: 50px;
-  background: #000;
+  background: rgba(0,0,0,0.5);
   border: 1px solid var(--border-panel);
   overflow: hidden;
 }
@@ -144,7 +157,7 @@ body {
 .master-btn {
   padding: 10px 16px;
   border: 1px solid var(--border-panel);
-  background: transparent;
+  background: rgba(255, 255, 255, 0.02);
   color: #FFF;
   font-family: var(--font-mono);
   font-weight: 700;
@@ -174,8 +187,11 @@ body {
   gap: 12px;
 }
 
+/* Glassmorphic Receiver Card */
 .receiver-card {
   background: var(--bg-panel);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
   border: 1px solid var(--border-panel);
   padding: 16px;
   display: flex;
@@ -190,10 +206,10 @@ body {
   position: absolute;
   top: 0;
   left: 0;
-  width: 3px;
+  width: 2px;
   height: 100%;
   background-color: var(--accent-red);
-  opacity: 0.3;
+  opacity: 0.25;
 }
 
 .receiver-card.is-active-speaker {
@@ -204,6 +220,7 @@ body {
 .receiver-card.is-active-speaker::before {
   background-color: var(--accent-green);
   opacity: 1;
+  width: 4px;
 }
 
 .card-top {
@@ -224,7 +241,7 @@ body {
 }
 
 .card-title-text h3 {
-  font-size: 0.9rem;
+  font-size: 0.95rem;
   font-weight: 600;
 }
 
@@ -236,7 +253,8 @@ body {
 
 .live-speaker-tag {
   font-family: var(--font-dot);
-  font-size: 0.6rem;
+  font-size: 0.65rem;
+  font-weight: 800;
   padding: 4px 8px;
   background: rgba(0, 255, 133, 0.1);
   color: var(--accent-green);
@@ -249,7 +267,7 @@ body {
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  background: #000;
+  background: rgba(0, 0, 0, 0.4);
   padding: 8px 10px;
   border: 1px solid var(--border-panel);
 }
@@ -298,16 +316,20 @@ body {
 .ctrl-btn.soloed {
   border-color: #FFF;
   color: #FFF;
+  background: rgba(255,255,255,0.05);
 }
 
-/* Terminal Log Panel */
+/* Terminal Log Panel - Glassmorphic */
 .terminal-card {
-  background: #000;
+  background: var(--bg-panel);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
   border: 1px solid var(--border-panel);
   padding: 16px;
   display: flex;
   flex-direction: column;
   gap: 10px;
+  box-shadow: 0 16px 32px rgba(0, 0, 0, 0.4);
 }
 
 .terminal-header {
@@ -319,10 +341,10 @@ body {
 }
 
 .terminal-header h3 {
-  font-size: 0.75rem;
+  font-size: 0.8rem;
   font-family: var(--font-dot);
   color: var(--accent-red);
-  letter-spacing: 2px;
+  letter-spacing: 1px;
 }
 
 .terminal-body {
@@ -351,7 +373,7 @@ body {
 
 @keyframes pulseAvatar {
   0% { box-shadow: 0 0 0px var(--accent-red); }
-  100% { box-shadow: 0 0 20px var(--accent-red); }
+  100% { box-shadow: 0 0 16px rgba(215, 25, 33, 0.4); }
 }
 
 /* Responsive Adjustments for Mobile Phones (<768px) */
