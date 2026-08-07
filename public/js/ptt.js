@@ -20,10 +20,16 @@ class PTTController {
     this.currentChannelId = channelId;
   }
 
+  isVolumeUpKey(e) {
+    const k = (e.key || '').toLowerCase();
+    const c = (e.code || '').toLowerCase();
+    return k === 'audiovolumeup' || k === 'volumeup' || c === 'audiovolumeup' || c === 'volumeup' || e.keyCode === 24 || e.which === 24;
+  }
+
   // 1. Hardware Volume Up Button Handling
   initHardwareKeyListeners() {
     window.addEventListener('keydown', (e) => {
-      if (e.key === 'AudioVolumeUp' || e.code === 'AudioVolumeUp') {
+      if (this.isVolumeUpKey(e)) {
         e.preventDefault();
         e.stopPropagation();
 
@@ -34,7 +40,7 @@ class PTTController {
     }, { capture: true });
 
     window.addEventListener('keyup', (e) => {
-      if (e.key === 'AudioVolumeUp' || e.code === 'AudioVolumeUp') {
+      if (this.isVolumeUpKey(e)) {
         e.preventDefault();
         e.stopPropagation();
 
