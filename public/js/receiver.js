@@ -31,7 +31,7 @@ class ReceiverEngine {
       this.initAudioContext();
       this.isAudioUnlocked = true;
       if (overlay) overlay.classList.add('hidden');
-      this.logTerminal('[SYSTEM] Mobile Audio Engine Activated 🔊');
+      this.logTerminal('[SYSTEM] Mobile Audio Engine Activated');
     };
     if (unlockBtn) unlockBtn.addEventListener('click', unlock);
     if (overlay) overlay.addEventListener('click', unlock);
@@ -179,8 +179,8 @@ class ReceiverEngine {
       for (let i = 0; i < bufferLength; i++) {
         const barHeight = (dataArray[i] / 255) * canvas.height;
         const gradient = ctx.createLinearGradient(0, canvas.height, 0, 0);
-        gradient.addColorStop(0, '#06B6D4');
-        gradient.addColorStop(1, '#FACC15');
+        gradient.addColorStop(0, '#D71921');
+        gradient.addColorStop(1, '#FFFFFF');
         ctx.fillStyle = gradient;
         ctx.fillRect(x, canvas.height - barHeight, barWidth, barHeight);
         x += barWidth + 3;
@@ -207,7 +207,15 @@ class ReceiverEngine {
     const speakerTag = card.querySelector('.live-speaker-tag');
     if (isActive) {
       card.classList.add('is-active-speaker');
-      if (speakerTag) { speakerTag.textContent = `🎙️ ${speakerName}`; speakerTag.style.display = 'inline-block'; }
+      if (speakerTag) {
+        const nameEl = speakerTag.querySelector('.speaker-tag-name');
+        if (nameEl) {
+          nameEl.textContent = ` ${speakerName}`;
+        } else {
+          speakerTag.textContent = ` ${speakerName}`;
+        }
+        speakerTag.style.display = 'inline-block';
+      }
     } else {
       card.classList.remove('is-active-speaker');
       if (speakerTag) speakerTag.style.display = 'none';
@@ -253,7 +261,9 @@ class ReceiverEngine {
     const btn = document.getElementById('master-mute-btn');
     if (btn) {
       btn.classList.toggle('active', this.isMutedAll);
-      btn.textContent = this.isMutedAll ? '🔇 ALL MUTED' : '🔊 AUDIO ACTIVE';
+      btn.innerHTML = this.isMutedAll 
+        ? '<span class="material-symbols-outlined" style="font-size:16px; vertical-align:middle; margin-right:4px;">volume_off</span> ALL MUTED'
+        : '<span class="material-symbols-outlined" style="font-size:16px; vertical-align:middle; margin-right:4px;">volume_up</span> AUDIO ACTIVE';
     }
   }
 }

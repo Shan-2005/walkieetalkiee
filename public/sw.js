@@ -1,4 +1,4 @@
-const CACHE_NAME = 'rf-walkie-v1';
+const CACHE_NAME = 'rf-walkie-v2';
 const ASSETS_TO_CACHE = [
   '/',
   '/index.html',
@@ -43,15 +43,28 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
+  // Network-First strategy so updates are received instantly, with offline cache fallback
   event.respondWith(
-    caches.match(event.request).then((cachedResponse) => {
-      if (cachedResponse) {
-        return cachedResponse;
-      }
-      return fetch(event.request).catch(() => {
-        // Fallback or offline page if offline
-        return caches.match('/index.html');
-      });
-    })
+    fetch(event.request)
+      .then((networkResponse) => {
+        if (networkResponse && networkResponse.status === 200) {
+          const responseToCache = networkResponse.clone();
+          caches.open(CACHE_NAME).then((cache) => {
+            cache.put(event.request, responseToCache);
+          });
+        }
+        return networkResponse;
+      })
+      .catch(() => {
+        return caches.match(event.request).then((cachedResponse) => {
+          if (cachedResponse) {
+            return cachedResponse;
+          }
+          // Fallback if offline and asset not cached
+          if (event.request.mode === 'navigate') {
+            return caches.match('/index.html');
+          }
+        });
+      })
   );
 });

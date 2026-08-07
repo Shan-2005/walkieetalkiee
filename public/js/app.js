@@ -8,10 +8,22 @@ class AppController {
   init() {
     console.log('[App] Initializing Robofest 2.0 Walkie-Talkie App...');
     
-    // Register Service Worker for PWA
+    // Register Service Worker for PWA with auto-update check
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.register('/sw.js').then((reg) => {
         console.log('[PWA] ServiceWorker registered with scope:', reg.scope);
+        
+        reg.addEventListener('updatefound', () => {
+          const newWorker = reg.installing;
+          if (newWorker) {
+            newWorker.addEventListener('statechange', () => {
+              if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                console.log('[PWA] New version available, reloading page to apply update...');
+                window.location.reload();
+              }
+            });
+          }
+        });
       }).catch((err) => {
         console.warn('[PWA] ServiceWorker registration failed:', err);
       });
