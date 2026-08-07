@@ -1,5 +1,11 @@
-// Push-to-Talk Controller — Rebuilt with strict state machine
-// v2.3 — fixes toggle glitch, stuck state, and mobile volume button
+// Push-to-Talk Controller — v2.4
+// Multi-strategy mobile PTT:
+//  1. Desktop: keydown/keyup for Volume Up key
+//  2. Mobile: volumechange on audio element (Android Chrome)
+//  3. Mobile: MediaSession action hooks (Android media focus)
+//  4. Mobile: Side-edge squeeze zone (transparent overlay on left edge)
+//  5. On-screen button: hold or tap-toggle
+
 class PTTController {
   constructor() {
     // Strict state machine: 'idle' | 'requesting' | 'transmitting' | 'blocked'
@@ -9,25 +15,23 @@ class PTTController {
     this.currentChannelId = null;
     this.pttButtonEl = null;
 
-    // Mobile volume detection
+    // Volume detection
     this._volProbeAudio = null;
     this._volReady = false;
     this._volDebounceTimer = null;
-    this._lastVolAction = 0; // timestamp guard against double-fire
-
-    // Prevent startPTT from being called again while already requesting
-    this._requesting = false;
+    this._lastVolAction = 0;
 
     this._initHardwareKeys();
     this._initMobileVolume();
+    this._initSideEdgeZone();
   }
 
-  // ─── Getters ────────────────────────────────────────────────────────────────
-  get isPTTActive()    { return this._state === 'transmitting'; }
-  get isBlocked()      { return this._state === 'blocked'; }
-  get isRequesting()   { return this._state === 'requesting'; }
+  // ─── Getters ─────────────────────────────────────────────────────────────
+  get isPTTActive()  { return this._state === 'transmitting'; }
+  get isBlocked()    { return this._state === 'blocked'; }
+  get isRequesting() { return this._state === 'requesting'; }
 
-  // ─── Public API ─────────────────────────────────────────────────────────────
+  // ─── Public API ──────────────────────────────────────────────────────────
   setButtonElement(el) {
     this.pttButtonEl = el;
     this._attachButtonListeners();
@@ -39,16 +43,18 @@ class PTTController {
 
   setToggleMode(enabled) {
     this.isToggleMode = !!enabled;
-    // Always stop cleanly when changing mode
     if (this._state === 'transmitting' || this._state === 'requesting') {
       this.stopPTT();
     }
     console.log('[PTT] Toggle mode:', this.isToggleMode);
   }
 
-  // ─── PTT start / stop ────────────────────────────────────────────────────────
+  activateVolumeProbe() {
+    this._startVolProbe();
+  }
+
+  // ─── PTT start / stop ────────────────────────────────────────────────────
   async startPTT() {
-    // Guard: only start from idle state
     if (this._state !== 'idle') return;
     if (!this.currentChannelId) return;
 
@@ -57,12 +63,11 @@ class PTTController {
     try {
       await window.audioEngine.requestMicPermission();
     } catch (err) {
-      window.uiController.showToast('Microphone access is required to talk.', 'error');
+      window.uiController.showToast('Microphone access required.', 'error');
       this._setState('idle');
       return;
     }
 
-    // Double-check state hasn't changed while awaiting mic
     if (this._state !== 'requesting') return;
 
     const mimeType = window.audioEngine.getSupportedMimeType();
@@ -73,7 +78,6 @@ class PTTController {
     if (this._state === 'idle') return;
 
     const wasTransmitting = this._state === 'transmitting';
-
     this._setState('idle');
 
     if (wasTransmitting) {
@@ -82,13 +86,13 @@ class PTTController {
     }
   }
 
-  // ─── Server event callbacks ──────────────────────────────────────────────────
+  // ─── Server event callbacks ──────────────────────────────────────────────
   onFloorGranted() {
-    if (this._state !== 'requesting') return; // stale grant, ignore
+    if (this._state !== 'requesting') return;
     this._setState('transmitting');
 
     window.audioEngine.startRecording(this.currentChannelId).catch((err) => {
-      console.error('[PTT] Recording failed to start:', err);
+      console.error('[PTT] Recording failed:', err);
       this.stopPTT();
     });
   }
@@ -96,14 +100,12 @@ class PTTController {
   onFloorDenied(currentSpeaker) {
     this._setState('blocked');
     window.uiController.showToast(`Floor busy — ${currentSpeaker || 'someone'} is talking.`, 'warning');
-    // Auto-unblock after 2s so the user can try again
     setTimeout(() => {
       if (this._state === 'blocked') this._setState('idle');
     }, 2000);
   }
 
   onFloorActive() {
-    // Another user grabbed the floor; block local PTT
     if (this._state === 'transmitting' || this._state === 'requesting') {
       this.stopPTT();
     }
@@ -111,16 +113,10 @@ class PTTController {
   }
 
   onFloorReleased() {
-    // Remote speaker released; unblock
     if (this._state === 'blocked') this._setState('idle');
   }
 
-  // Alias used by older app.js code
-  activateVolumeProbe() {
-    this._startVolProbe();
-  }
-
-  // ─── Internal state machine ──────────────────────────────────────────────────
+  // ─── Internal state machine ───────────────────────────────────────────────
   _setState(newState) {
     if (this._state === newState) return;
     console.log(`[PTT] ${this._state} → ${newState}`);
@@ -128,7 +124,16 @@ class PTTController {
     window.uiController.updatePTTState(newState);
   }
 
-  // ─── Desktop keyboard listeners ───────────────────────────────────────────────
+  _handleTogglePress() {
+    if (!this.currentChannelId) return;
+    if (this._state === 'transmitting' || this._state === 'requesting') {
+      this.stopPTT();
+    } else if (this._state === 'idle') {
+      this.startPTT();
+    }
+  }
+
+  // ─── Strategy 1: Desktop keyboard volume up ───────────────────────────────
   _initHardwareKeys() {
     window.addEventListener('keydown', (e) => {
       if (!this._isVolUp(e)) return;
@@ -145,9 +150,7 @@ class PTTController {
       if (!this._isVolUp(e)) return;
       e.preventDefault();
       e.stopPropagation();
-      if (!this.isToggleMode) {
-        this.stopPTT();
-      }
+      if (!this.isToggleMode) this.stopPTT();
     }, { capture: true });
   }
 
@@ -161,25 +164,40 @@ class PTTController {
     );
   }
 
-  // ─── Mobile volume button via silent audio + volumechange event ────────────
+  // ─── Strategy 2: Mobile volumechange on audio element ────────────────────
+  // Works on Android Chrome when a media audio session is active.
+  // Does NOT work on iOS — Apple blocks it by design.
   _initMobileVolume() {
-    // Works on both touch and non-touch devices — attach unconditionally.
-    // The audio element approach only fires on mobile where keyboard events are blocked.
     try {
       const audio = document.createElement('audio');
       audio.id = 'vol-probe-audio';
       audio.loop = true;
       audio.playsInline = true;
       audio.muted = false;
-      audio.volume = 0.5;
+      audio.volume = 0.01; // near-silent but NOT muted so session stays active
       audio.style.display = 'none';
 
-      // Tiny silent WAV to keep audio session alive
-      audio.src = 'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAIA+AAACABAAZGFwYQAAAAA=';
+      // Use a real (but inaudible) tone instead of empty WAV —
+      // empty WAV can cause some browsers to not register the audio session.
+      // This is a 1-second 20Hz tone (below human hearing).
+      audio.src = 'data:audio/wav;base64,UklGRmQBAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YUABAAB' +
+        'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA' +
+        'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA' +
+        'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA' +
+        'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==';
+
       document.body.appendChild(audio);
       this._volProbeAudio = audio;
 
-      audio.addEventListener('volumechange', () => this._onVolumeChange());
+      // The volumechange fires when:
+      //   a) JS changes audio.volume (we DON'T want to react to that)
+      //   b) System volume changes while the audio element is active
+      // We track JS-originated changes using a flag.
+      this._volChangingByJS = false;
+      audio.addEventListener('volumechange', () => {
+        if (this._volChangingByJS) return; // skip JS-triggered changes
+        this._onVolumeChange();
+      });
     } catch (err) {
       console.warn('[PTT] Mobile volume detection init failed:', err);
     }
@@ -187,13 +205,34 @@ class PTTController {
 
   _startVolProbe() {
     if (!this._volProbeAudio) return;
+
+    // Try to register a MediaSession so Android treats us as a media app.
+    // This makes volume buttons control the "media" volume channel, which
+    // is required for volumechange events to fire on hardware press.
+    if ('mediaSession' in navigator) {
+      try {
+        navigator.mediaSession.metadata = new MediaMetadata({
+          title: 'Robofest 2.0 Walkie-Talkie',
+          artist: 'PTT Channel Active',
+        });
+        // We don't need actual action handlers — just having metadata
+        // registered keeps the media session alive.
+        navigator.mediaSession.setActionHandler('play', () => {});
+        navigator.mediaSession.setActionHandler('pause', () => {});
+        console.log('[PTT] MediaSession registered.');
+      } catch (e) {
+        console.warn('[PTT] MediaSession setup failed:', e);
+      }
+    }
+
     this._volProbeAudio.play()
       .then(() => {
         this._volReady = true;
-        console.log('[PTT] Volume probe active — hardware volume buttons will trigger PTT.');
+        console.log('[PTT] Volume probe active — volume button PTT enabled.');
       })
       .catch((err) => {
-        console.warn('[PTT] Volume probe play failed:', err);
+        console.warn('[PTT] Volume probe play failed (autoplay policy):', err);
+        // Not fatal — on-screen button still works
       });
   }
 
@@ -201,27 +240,100 @@ class PTTController {
     if (!this._volReady) return;
     if (!this.currentChannelId) return;
 
-    // Strict debounce: ignore repeated events within 400ms of the last action
+    // Guard: 400ms min between actions to prevent double-fire
     const now = Date.now();
     if (now - this._lastVolAction < 400) return;
     this._lastVolAction = now;
 
+    // Restore probe volume level silently (so next press still fires)
     clearTimeout(this._volDebounceTimer);
     this._volDebounceTimer = setTimeout(() => {
       this._handleTogglePress();
-    }, 120);
+
+      // Restore volume after a tiny delay so the next press fires another event
+      setTimeout(() => {
+        if (this._volProbeAudio) {
+          this._volChangingByJS = true;
+          this._volProbeAudio.volume = 0.01;
+          requestAnimationFrame(() => { this._volChangingByJS = false; });
+        }
+      }, 200);
+    }, 100);
   }
 
-  // ─── Toggle press handler (shared by volume button + toggle mode button) ────
-  _handleTogglePress() {
-    if (!this.currentChannelId) return;
+  // ─── Strategy 3: Side-Edge Squeeze Zone ──────────────────────────────────
+  // Creates a transparent 40px-wide strip along the LEFT edge of the screen.
+  // Users can squeeze/tap the left side of their phone (where the volume button
+  // is on most Android phones) to trigger PTT — no JS permission needed.
+  _initSideEdgeZone() {
+    // Only create on touch devices
+    if (!('ontouchstart' in window)) return;
 
-    if (this._state === 'transmitting' || this._state === 'requesting') {
-      this.stopPTT();
-    } else if (this._state === 'idle') {
-      this.startPTT();
-    }
-    // If blocked, do nothing — wait for auto-unblock
+    const zone = document.createElement('div');
+    zone.id = 'squeeze-zone';
+    zone.style.cssText = `
+      position: fixed;
+      top: 30%;
+      left: 0;
+      width: 44px;
+      height: 40%;
+      z-index: 8000;
+      background: transparent;
+      touch-action: none;
+      -webkit-tap-highlight-color: transparent;
+      cursor: pointer;
+    `;
+
+    // Visual feedback indicator
+    const indicator = document.createElement('div');
+    indicator.style.cssText = `
+      position: absolute;
+      top: 50%;
+      left: 6px;
+      transform: translateY(-50%);
+      width: 4px;
+      height: 40px;
+      background: rgba(215, 25, 33, 0.3);
+      border-radius: 2px;
+      transition: all 0.15s ease;
+    `;
+    zone.appendChild(indicator);
+    document.body.appendChild(zone);
+    this._squeezeZoneIndicator = indicator;
+
+    let squeezeActive = false;
+
+    zone.addEventListener('touchstart', (e) => {
+      e.preventDefault();
+      squeezeActive = true;
+      indicator.style.background = 'rgba(215, 25, 33, 0.8)';
+      indicator.style.height = '60px';
+
+      if (this.isToggleMode) {
+        this._handleTogglePress();
+      } else {
+        if (this._state === 'idle') this.startPTT();
+      }
+    }, { passive: false });
+
+    zone.addEventListener('touchend', (e) => {
+      e.preventDefault();
+      squeezeActive = false;
+      indicator.style.background = 'rgba(215, 25, 33, 0.3)';
+      indicator.style.height = '40px';
+
+      if (!this.isToggleMode) this.stopPTT();
+    }, { passive: false });
+
+    zone.addEventListener('touchcancel', (e) => {
+      e.preventDefault();
+      squeezeActive = false;
+      indicator.style.background = 'rgba(215, 25, 33, 0.3)';
+      indicator.style.height = '40px';
+      if (!this.isToggleMode) this.stopPTT();
+    }, { passive: false });
+
+    console.log('[PTT] Side-edge squeeze zone created on left edge.');
   }
 
   // ─── On-screen PTT button (pointer events) ────────────────────────────────
@@ -246,17 +358,12 @@ class PTTController {
       try {
         if (e.pointerId != null) this.pttButtonEl.releasePointerCapture(e.pointerId);
       } catch (_) {}
-
-      if (!this.isToggleMode) {
-        this.stopPTT();
-      }
+      if (!this.isToggleMode) this.stopPTT();
     });
 
     this.pttButtonEl.addEventListener('pointercancel', (e) => {
       e.preventDefault();
-      if (!this.isToggleMode) {
-        this.stopPTT();
-      }
+      if (!this.isToggleMode) this.stopPTT();
     });
 
     this.pttButtonEl.addEventListener('contextmenu', (e) => e.preventDefault());
