@@ -139,7 +139,9 @@ class UIController {
 
     switch (state) {
       case 'idle':
-        statusText.textContent = 'Hold Volume Up or Press to Talk';
+        statusText.textContent = 'ontouchstart' in window
+          ? 'Press Volume Up to Toggle or Tap Button'
+          : 'Hold Volume Up or Press to Talk';
         statusText.style.color = '#94A3B8';
         break;
 

@@ -1,4 +1,4 @@
-// Push-to-Talk (PTT) Mechanism & Volume Key Listener with Pointer Capture & Lock Toggle
+// Push-to-Talk (PTT) Mechanism — Desktop keys + Mobile Volume Button Detection
 class PTTController {
   constructor() {
     this.isPTTActive = false;
@@ -8,7 +8,14 @@ class PTTController {
     this.currentChannelId = null;
     this.pttButtonEl = null;
 
+    // Mobile volume button detection state
+    this._volProbeAudio = null;
+    this._volBaseline = 0.5;
+    this._volDebounce = null;
+    this._volReady = false;
+
     this.initHardwareKeyListeners();
+    this.initMobileVolumeDetection();
   }
 
   setButtonElement(el) {
@@ -26,7 +33,7 @@ class PTTController {
     return k === 'audiovolumeup' || k === 'volumeup' || c === 'audiovolumeup' || c === 'volumeup' || e.keyCode === 24 || e.which === 24;
   }
 
-  // 1. Hardware Volume Up Button Handling
+  // 1. Desktop Hardware Volume Up / Keyboard Key Handling
   initHardwareKeyListeners() {
     window.addEventListener('keydown', (e) => {
       if (this.isVolumeUpKey(e)) {
@@ -51,7 +58,69 @@ class PTTController {
     }, { capture: true });
   }
 
-  // 2. On-Screen Touch / Pointer Listeners with setPointerCapture
+  // 2. Mobile Volume Button Detection via hidden audio element
+  //    Mobile browsers block keydown for volume keys, but they DO fire
+  //    'volumechange' events on <audio> elements when system volume changes.
+  //    We use this to detect volume button presses as a PTT toggle trigger.
+  initMobileVolumeDetection() {
+    // Only activate on touch devices (phones/tablets)
+    if (!('ontouchstart' in window)) return;
+
+    try {
+      // Create a silent audio element that keeps the media audio session alive
+      const audio = document.createElement('audio');
+      audio.id = 'vol-probe-audio';
+      audio.loop = true;
+      audio.playsInline = true;
+      audio.style.display = 'none';
+
+      // Generate a tiny silent WAV file as a data URI (44 bytes of silence)
+      // This keeps the audio session alive so volumechange fires
+      const silentWav = 'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAIA+AAACABAAZGFwYQAAAAA=';
+      audio.src = silentWav;
+
+      document.body.appendChild(audio);
+      this._volProbeAudio = audio;
+
+      // Listen for volume changes
+      audio.addEventListener('volumechange', () => {
+        if (!this._volReady) return;
+        if (!this.currentChannelId) return;
+
+        // Debounce rapid volume change events (holding button sends many)
+        clearTimeout(this._volDebounce);
+        this._volDebounce = setTimeout(() => {
+          // Toggle PTT on each volume button press
+          if (this.isPTTActive) {
+            this.stopPTT();
+            window.uiController.showToast('🔇 Mic OFF (Volume key)', 'info');
+          } else {
+            this.startPTT();
+            window.uiController.showToast('🎙️ Mic ON (Volume key)', 'info');
+          }
+        }, 150); // 150ms debounce to catch rapid repeat events
+      });
+
+      console.log('[PTT] Mobile volume detection initialized (touch device detected).');
+    } catch (err) {
+      console.warn('[PTT] Mobile volume detection setup failed:', err);
+    }
+  }
+
+  // Must be called on a user gesture (e.g. login button click) to start the probe audio
+  activateVolumeProbe() {
+    if (!this._volProbeAudio) return;
+    const audio = this._volProbeAudio;
+    audio.volume = this._volBaseline;
+    audio.play().then(() => {
+      this._volReady = true;
+      console.log('[PTT] Volume probe audio playing — hardware volume buttons active!');
+    }).catch((err) => {
+      console.warn('[PTT] Volume probe audio play failed (needs user gesture):', err);
+    });
+  }
+
+  // 3. On-Screen Touch / Pointer Listeners with setPointerCapture
   attachTouchListeners() {
     if (!this.pttButtonEl) return;
 

@@ -53,6 +53,9 @@ class AppController {
         // Unlock audio context on user click gesture
         window.audioEngine.initAudioContext();
 
+        // Activate mobile volume button detection (needs user gesture)
+        window.pttController.activateVolumeProbe();
+
         // Request Mic access early
         window.audioEngine.requestMicPermission().catch((err) => {
           console.warn('[App] Initial mic permission prompt failed:', err);
