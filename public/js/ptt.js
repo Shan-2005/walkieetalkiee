@@ -301,8 +301,6 @@ class PTTController {
     document.body.appendChild(zone);
     this._squeezeZoneIndicator = indicator;
 
-    let squeezeActive = false;
-
     zone.addEventListener('touchstart', (e) => {
       e.preventDefault();
       squeezeActive = true;
@@ -314,6 +312,10 @@ class PTTController {
       } else {
         if (this._state === 'idle') this.startPTT();
       }
+    }, { passive: false });
+
+    zone.addEventListener('touchmove', (e) => {
+      e.preventDefault(); // Prevent gesture scrolling & keep PTT active even if finger slides
     }, { passive: false });
 
     zone.addEventListener('touchend', (e) => {
@@ -336,11 +338,44 @@ class PTTController {
     console.log('[PTT] Side-edge squeeze zone created on left edge.');
   }
 
-  // ─── On-screen PTT button (pointer events) ────────────────────────────────
+  // ─── On-screen PTT button (Movement-Immune Touch & Pointer Engine) ────────
   _attachButtonListeners() {
     if (!this.pttButtonEl) return;
 
+    let isTouching = false;
+
+    // Mobile Touch Events: Guaranteed immunity to finger wiggling/sliding
+    this.pttButtonEl.addEventListener('touchstart', (e) => {
+      e.preventDefault();
+      isTouching = true;
+
+      if (this.isToggleMode) {
+        this._handleTogglePress();
+      } else {
+        if (this._state === 'idle') this.startPTT();
+      }
+    }, { passive: false });
+
+    // Ignore finger sliding! Moving finger will NEVER cancel microphone recording
+    this.pttButtonEl.addEventListener('touchmove', (e) => {
+      e.preventDefault();
+    }, { passive: false });
+
+    this.pttButtonEl.addEventListener('touchend', (e) => {
+      e.preventDefault();
+      isTouching = false;
+      if (!this.isToggleMode) this.stopPTT();
+    }, { passive: false });
+
+    this.pttButtonEl.addEventListener('touchcancel', (e) => {
+      e.preventDefault();
+      isTouching = false;
+      if (!this.isToggleMode) this.stopPTT();
+    }, { passive: false });
+
+    // Desktop Mouse / Pointer Events
     this.pttButtonEl.addEventListener('pointerdown', (e) => {
+      if (e.pointerType === 'touch') return; // Handled by touch events
       e.preventDefault();
       try {
         if (e.pointerId != null) this.pttButtonEl.setPointerCapture(e.pointerId);
@@ -354,15 +389,11 @@ class PTTController {
     });
 
     this.pttButtonEl.addEventListener('pointerup', (e) => {
+      if (e.pointerType === 'touch') return;
       e.preventDefault();
       try {
         if (e.pointerId != null) this.pttButtonEl.releasePointerCapture(e.pointerId);
       } catch (_) {}
-      if (!this.isToggleMode) this.stopPTT();
-    });
-
-    this.pttButtonEl.addEventListener('pointercancel', (e) => {
-      e.preventDefault();
       if (!this.isToggleMode) this.stopPTT();
     });
 
