@@ -1,6 +1,20 @@
 // Channels & Event Dataset from HANDOFF spec
 const EVENTS = [
   {
+    id: 'all',
+    name: 'MASTER EMERGENCY BROADCAST',
+    icon: 'warning',
+    color: '#D71921',
+    date: 'ROBOFEST 2.0',
+    location: 'ALL ARENAS & TRACKS',
+    facultySPOC: 'All Faculty Leads',
+    studentSPOC: 'All SPOCs / Organizers',
+    prizePool: 'EMERGENCY OVERRIDE',
+    entryFee: 'N/A',
+    teamSizeMax: 0,
+    isEmergency: true
+  },
+  {
     id: 'drone',
     name: 'Drone',
     icon: 'flight',

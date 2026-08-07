@@ -172,7 +172,8 @@ class AudioEngine {
       }
     };
 
-    this.mediaRecorder.start(100);
+    // Low-latency timeslice = 40ms for instant real-time transmission
+    this.mediaRecorder.start(40);
     console.log('[Audio] MediaRecorder streaming on channel:', channelId, 'mime:', mimeType);
   }
 
@@ -303,7 +304,7 @@ class AudioEngine {
 
       const now = this.audioCtx.currentTime;
       if (!this.nextWebAudioTime || this.nextWebAudioTime < now) {
-        this.nextWebAudioTime = now + 0.02;
+        this.nextWebAudioTime = now + 0.005;
       }
 
       source.start(this.nextWebAudioTime);

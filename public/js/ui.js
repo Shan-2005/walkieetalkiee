@@ -48,7 +48,7 @@ class UIController {
 
     channels.forEach(ch => {
       const card = document.createElement('div');
-      card.className = `channel-card ${ch.isBroadcast ? 'broadcast-card' : ''}`;
+      card.className = `channel-card ${ch.isEmergency ? 'emergency-card' : ch.isBroadcast ? 'broadcast-card' : ''}`;
       card.setAttribute('data-channel-id', ch.id);
 
       const count = window.channelManager.getMemberCount(ch.id);

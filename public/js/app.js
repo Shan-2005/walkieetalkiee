@@ -130,35 +130,37 @@ class AppController {
 
     window.socketManager.on('ptt:active', (data) => {
       if (data.userId !== window.socketManager.currentUserId) {
-        window.pttController.onFloorActive();
-        window.uiController.updatePTTState('receiving', data.userName);
-        window.audioEngine.playBeep('start');
-        // Init MSE streaming player for the incoming speaker's codec
-        window.audioEngine.initMediaSourcePlayer(data.mimeType || '');
+        if (data.isEmergency || data.channelId === 'all' || (this.currentChannel && data.channelId === this.currentChannel.id)) {
+          window.pttController.onFloorActive();
+          const speakerText = (data.isEmergency || data.channelId === 'all') ? `[!] EMERGENCY: ${data.userName}` : data.userName;
+          window.uiController.updatePTTState('receiving', speakerText);
+          window.audioEngine.playBeep('start');
+          window.audioEngine.initMediaSourcePlayer(data.mimeType || '');
 
-        if ('Notification' in window && Notification.permission === 'granted' && document.hidden) {
-          new Notification('Robofest 2.0 Walkie-Talkie', {
-            body: `${data.userName} (${data.role}) is talking on ${data.channelId.toUpperCase()}`,
-            icon: '/assets/walkie-icon.png'
-          });
+          if ('Notification' in window && Notification.permission === 'granted' && document.hidden) {
+            new Notification('Robofest 2.0 Walkie-Talkie', {
+              body: `${speakerText} (${data.role}) is broadcasting across ${data.channelId.toUpperCase()}`,
+              icon: '/assets/walkie-icon.png'
+            });
+          }
         }
       }
     });
 
     window.socketManager.on('ptt:released', (data) => {
       if (data.socketId !== window.socketManager.currentUserId) {
-        window.pttController.onFloorReleased();
-        window.uiController.updatePTTState('idle');
-        window.audioEngine.playBeep('stop');
-        // Gracefully end the MSE session
-        setTimeout(() => window.audioEngine.teardownPlayer(), 600);
+        if (data.isEmergency || data.channelId === 'all' || (this.currentChannel && data.channelId === this.currentChannel.id)) {
+          window.pttController.onFloorReleased();
+          window.uiController.updatePTTState('idle');
+          window.audioEngine.playBeep('stop');
+          setTimeout(() => window.audioEngine.teardownPlayer(), 600);
+        }
       }
     });
 
     window.socketManager.on('audio:chunk', (data) => {
       if (data.senderId !== window.socketManager.currentUserId) {
-        // Guard: only play audio if we are actively joined in the chunk's channel
-        if (this.currentChannel && data.channelId === this.currentChannel.id) {
+        if (data.channelId === 'all' || (this.currentChannel && data.channelId === this.currentChannel.id)) {
           window.audioEngine.receiveChunk(data.audioData);
         }
       }

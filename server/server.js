@@ -89,10 +89,15 @@ function releaseFloor(channelId, socketId = null, reason = 'released') {
       channelId,
       socketId: currentOwner,
       userName: user ? user.name : 'User',
-      reason
+      reason,
+      isEmergency: channelId === 'all'
     };
 
-    io.to(channelId).emit('ptt:released', releasePayload);
+    if (channelId === 'all') {
+      io.emit('ptt:released', releasePayload);
+    } else {
+      io.to(channelId).emit('ptt:released', releasePayload);
+    }
     console.log(`[Floor Released] Channel: ${channelId} (owner: ${currentOwner}, reason: ${reason})`);
   }
 }
@@ -120,11 +125,16 @@ function grantFloor(channelId, socketId, mimeType) {
     userId: socketId,
     userName: user ? user.name : 'Speaker',
     role: user ? user.role : 'Team Member',
-    mimeType: mimeType || ''
+    mimeType: mimeType || '',
+    isEmergency: channelId === 'all'
   };
 
-  io.to(channelId).emit('ptt:active', activePayload);
-  console.log(`[Floor Granted] ${user ? user.name : socketId} on ${channelId}`);
+  if (channelId === 'all') {
+    io.emit('ptt:active', activePayload);
+  } else {
+    io.to(channelId).emit('ptt:active', activePayload);
+  }
+  console.log(`[Floor Granted] ${user ? user.name : socketId} on ${channelId} (Emergency: ${channelId === 'all'})`);
 }
 
 function touchFloorAudioActivity(channelId, socketId) {
@@ -391,7 +401,11 @@ io.on('connection', (socket) => {
       audioData
     };
 
-    socket.to(targetChannel).emit('audio:chunk', chunkPayload);
+    if (targetChannel === 'all') {
+      socket.volatile.broadcast.emit('audio:chunk', chunkPayload);
+    } else {
+      socket.to(targetChannel).volatile.emit('audio:chunk', chunkPayload);
+    }
   });
 
   socket.on('disconnect', () => {
