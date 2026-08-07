@@ -49,23 +49,22 @@ class UIController {
     channels.forEach(ch => {
       const card = document.createElement('div');
       card.className = `channel-card ${ch.isBroadcast ? 'broadcast-card' : ''}`;
-      card.style.setProperty('--accent-color', ch.color);
       card.setAttribute('data-channel-id', ch.id);
 
       const count = window.channelManager.getMemberCount(ch.id);
 
       card.innerHTML = `
         <div class="card-header">
-          <span class="channel-emoji">${ch.emoji}</span>
+          <span class="material-symbols-outlined channel-icon">${ch.icon || 'radio'}</span>
           <span class="member-badge"><i class="badge-dot"></i> ${count} online</span>
         </div>
         <div class="card-body">
           <h3 class="channel-name">${ch.name}</h3>
-          <p class="channel-location"><i class="icon-location">📍</i> ${ch.location}</p>
-          ${ch.date ? `<span class="channel-date">📅 ${ch.date}</span>` : ''}
+          <p class="channel-location"><span class="material-symbols-outlined" style="font-size:12px;vertical-align:middle;margin-right:2px;">location_on</span> ${ch.location}</p>
+          ${ch.date ? `<span class="channel-date"><span class="material-symbols-outlined" style="font-size:11px;vertical-align:middle;margin-right:2px;">calendar_today</span> ${ch.date}</span>` : ''}
         </div>
         <div class="card-footer">
-          <button class="join-btn">Tap to Join</button>
+          <button class="join-btn">TAP TO JOIN</button>
         </div>
       `;
 
@@ -80,19 +79,14 @@ class UIController {
   // Render active channel view screen
   renderActiveChannelView(channel) {
     const headerTitle = document.getElementById('active-channel-title');
-    const headerEmoji = document.getElementById('active-channel-emoji');
+    const headerIcon = document.getElementById('active-channel-icon');
     const headerLocation = document.getElementById('active-channel-location');
     const channelThemeBar = document.getElementById('channel-theme-bar');
-    const pttButton = document.getElementById('ptt-button');
 
     if (headerTitle) headerTitle.textContent = channel.name;
-    if (headerEmoji) headerEmoji.textContent = channel.emoji;
+    if (headerIcon) headerIcon.textContent = channel.icon || 'radio';
     if (headerLocation) headerLocation.textContent = channel.location;
     if (channelThemeBar) channelThemeBar.style.backgroundColor = channel.color;
-    
-    if (pttButton) {
-      pttButton.style.setProperty('--channel-accent', channel.color);
-    }
 
     this.updatePTTState('idle');
   }
@@ -103,7 +97,7 @@ class UIController {
     const listEl = document.getElementById('member-avatars');
 
     if (countEl) {
-      countEl.textContent = `${members.length} Online`;
+      countEl.textContent = `${members.length}`;
     }
 
     if (listEl) {
@@ -142,26 +136,26 @@ class UIController {
         statusText.textContent = 'ontouchstart' in window
           ? 'Press Volume Up to Toggle or Tap Button'
           : 'Hold Volume Up or Press to Talk';
-        statusText.style.color = '#94A3B8';
+        statusText.style.color = '#808080';
         break;
 
       case 'requesting':
         btn.classList.add('state-requesting');
         statusText.textContent = 'Connecting mic...';
-        statusText.style.color = '#FACC15';
+        statusText.style.color = '#808080';
         break;
 
       case 'transmitting':
         btn.classList.add('state-transmitting');
-        statusText.textContent = '🔴 TRANSMITTING...';
-        statusText.style.color = '#EF4444';
+        statusText.textContent = 'TRANSMITTING';
+        statusText.style.color = '#D71921';
         waveform.classList.remove('hidden');
         break;
 
       case 'receiving':
         btn.classList.add('state-receiving');
-        statusText.textContent = `🔊 ${extraInfo} is talking...`;
-        statusText.style.color = '#10B981';
+        statusText.textContent = `${extraInfo} is talking`;
+        statusText.style.color = '#00FF85';
         speakerIndicator.classList.remove('hidden');
         if (speakerName) speakerName.textContent = extraInfo;
         waveform.classList.remove('hidden');
@@ -169,8 +163,8 @@ class UIController {
 
       case 'blocked':
         btn.classList.add('state-blocked');
-        statusText.textContent = `🚫 Floor busy (${extraInfo})`;
-        statusText.style.color = '#F87171';
+        statusText.textContent = `Floor busy — ${extraInfo}`;
+        statusText.style.color = '#4A4A4A';
         break;
     }
   }
@@ -182,8 +176,13 @@ class UIController {
 
     const toast = document.createElement('div');
     toast.className = `toast toast-${type}`;
+    
+    let iconName = 'info';
+    if (type === 'warning') iconName = 'warning';
+    if (type === 'error') iconName = 'error';
+
     toast.innerHTML = `
-      <span class="toast-icon">${type === 'warning' ? '⚠️' : type === 'error' ? '❌' : 'ℹ️'}</span>
+      <span class="material-symbols-outlined" style="font-size:18px;">${iconName}</span>
       <span class="toast-msg">${message}</span>
     `;
 

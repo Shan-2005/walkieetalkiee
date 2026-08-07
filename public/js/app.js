@@ -17,10 +17,9 @@ class AppController {
       });
     }
 
-    // Check secure context for mobile mic access over Wi-Fi IP
+    // Secure context check (logged only, no UI banner)
     if (!window.isSecureContext && location.hostname !== 'localhost' && location.hostname !== '127.0.0.1') {
-      const alertEl = document.getElementById('http-mic-alert');
-      if (alertEl) alertEl.classList.remove('hidden');
+      console.warn('[App] Not running in secure context — mic access may be blocked on mobile.');
     }
 
     window.uiController.init();
@@ -179,7 +178,7 @@ class AppController {
     window.uiController.renderActiveChannelView(channel);
     window.uiController.showScreen('channel-view-screen');
 
-    window.uiController.showToast('💡 Tip: Hold Volume Up button to talk!', 'info');
+    window.uiController.showToast('Tip: Hold Volume Up or tap the button to talk.', 'info');
   }
 
   leaveCurrentChannel() {
