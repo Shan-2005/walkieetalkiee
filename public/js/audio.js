@@ -90,8 +90,15 @@ class AudioEngine {
     return '';
   }
 
-  // Synthesize PTT Roger Beeps
+  vibrate(pattern = [30]) {
+    if ('vibrate' in navigator) {
+      try { navigator.vibrate(pattern); } catch (e) {}
+    }
+  }
+
+  // Synthesize PTT Roger Beeps & Haptic Feedback
   playBeep(type = 'start') {
+    this.vibrate(type === 'start' ? [40] : [20, 30, 20]);
     try {
       this.initAudioContext();
       const osc = this.audioCtx.createOscillator();
@@ -120,7 +127,7 @@ class AudioEngine {
     }
   }
 
-  // Request Microphone Stream
+  // Request Microphone Stream (Low-Bandwidth 16kHz Mono Speech for Congested Wi-Fi/4G)
   async requestMicPermission() {
     if (this.mediaStream) return this.mediaStream;
     try {
@@ -128,7 +135,9 @@ class AudioEngine {
         audio: {
           echoCancellation: true,
           noiseSuppression: true,
-          autoGainControl: true
+          autoGainControl: true,
+          channelCount: 1,
+          sampleRate: 16000
         }
       });
       return this.mediaStream;
@@ -148,7 +157,10 @@ class AudioEngine {
     this.isRecording = true;
 
     const mimeType = this.getSupportedMimeType();
-    const options = mimeType ? { mimeType } : {};
+    const options = {
+      audioBitsPerSecond: 24000 // 24kbps low-latency speech encoding
+    };
+    if (mimeType) options.mimeType = mimeType;
 
     this.mediaRecorder = new MediaRecorder(stream, options);
 

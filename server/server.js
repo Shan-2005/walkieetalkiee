@@ -35,6 +35,16 @@ const io = new Server(server, {
 
 app.use(cors());
 
+// Keep-alive health check route to prevent Render sleep mode
+app.get('/ping', (req, res) => {
+  res.json({
+    status: 'ok',
+    app: 'Robofest 2.0 Walkie-Talkie',
+    uptimeSeconds: Math.floor(process.uptime()),
+    timestamp: new Date().toISOString()
+  });
+});
+
 // Serve static files with custom headers to prevent browser caching of HTML files
 app.use(express.static(path.join(__dirname, '../public'), {
   etag: true,
