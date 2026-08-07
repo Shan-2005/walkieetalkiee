@@ -443,14 +443,27 @@ body {
 }
 
 /* ==========================================================================
-   Screen 3: Walkie-Talkie Channel View
+   Screen 3: Walkie-Talkie Channel View (FIXED NO-SCROLL SINGLE SCREEN)
    ========================================================================== */
+#channel-view-screen {
+  height: 100dvh;
+  max-height: 100dvh;
+  overflow: hidden !important;
+  padding: 12px 16px;
+  box-sizing: border-box;
+  touch-action: manipulation;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
 .channel-view-container {
-  flex: 1;
+  height: 100%;
+  max-height: 100%;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
-  padding-bottom: 20px;
+  overflow: hidden !important;
+  padding-bottom: 0;
 }
 
 .top-nav {
@@ -544,22 +557,23 @@ body {
 /* Center Display & Waveform */
 .display-center {
   flex: 1;
+  min-height: 0;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  margin: 20px 0;
+  margin: 4px 0;
 }
 
 .speaker-card {
   text-align: center;
-  margin-bottom: 20px;
+  margin-bottom: 10px;
 }
 
 .speaker-avatar {
-  width: 60px;
-  height: 60px;
-  margin: 0 auto 12px;
+  width: 52px;
+  height: 52px;
+  margin: 0 auto 8px;
   border: 1px solid var(--accent-red);
   background: rgba(215, 25, 33, 0.05);
   display: flex;
@@ -580,8 +594,8 @@ body {
   align-items: center;
   justify-content: center;
   gap: 4px;
-  height: 40px;
-  margin-top: 15px;
+  height: 32px;
+  margin-top: 8px;
 }
 
 .waveform-bars span {
@@ -609,7 +623,9 @@ body {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 16px;
+  gap: 8px;
+  flex-shrink: 0;
+  padding-bottom: 8px;
 }
 
 .ptt-btn-outer {
