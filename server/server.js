@@ -34,7 +34,24 @@ const io = new Server(server, {
 });
 
 app.use(cors());
-app.use(express.static(path.join(__dirname, '../public')));
+
+// Serve static files with custom headers to prevent browser caching of HTML files
+app.use(express.static(path.join(__dirname, '../public'), {
+  etag: true,
+  lastModified: true,
+  setHeaders: (res, filePath) => {
+    const ext = path.extname(filePath);
+    if (ext === '.html') {
+      // HTML files must always revalidate
+      res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+      res.setHeader('Pragma', 'no-cache');
+      res.setHeader('Expires', '0');
+    } else {
+      // Allow short caching for other assets (which are version-busted via query params)
+      res.setHeader('Cache-Control', 'public, max-age=60');
+    }
+  }
+}));
 
 // Data structures
 const users = new Map();
