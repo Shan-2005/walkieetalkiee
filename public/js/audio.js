@@ -172,6 +172,11 @@ class AudioEngine {
       }
     };
 
+    this.mediaRecorder.onerror = (err) => {
+      console.warn('[Audio] MediaRecorder encountered error:', err);
+      if (window.pttController) window.pttController.stopPTT();
+    };
+
     // Low-latency timeslice = 40ms for instant real-time transmission
     this.mediaRecorder.start(40);
     console.log('[Audio] MediaRecorder streaming on channel:', channelId, 'mime:', mimeType);

@@ -22,12 +22,23 @@ class SocketManager {
       this.isConnected = true;
       this.currentUserId = this.socket.id;
       console.log('[Socket] Connected to server:', this.socket.id);
+
+      // Seamless auto-reconnect on mobile Wi-Fi / cellular drops
+      if (this.lastUser) {
+        this.socket.emit('user:join', this.lastUser, () => {
+          if (this.lastChannel) {
+            this.socket.emit('channel:join', { channelId: this.lastChannel });
+          }
+        });
+      }
+
       this.emitLocal('connect', { userId: this.socket.id });
     });
 
     this.socket.on('disconnect', (reason) => {
       this.isConnected = false;
       console.warn('[Socket] Disconnected:', reason);
+      if (window.pttController) window.pttController.stopPTT();
       this.emitLocal('disconnect', { reason });
     });
 
@@ -66,11 +77,13 @@ class SocketManager {
   }
 
   joinUser(name, role, callback) {
+    this.lastUser = { name, role };
     if (!this.socket) this.connect();
     this.socket.emit('user:join', { name, role }, callback);
   }
 
   joinChannel(channelId) {
+    this.lastChannel = channelId;
     if (this.socket) {
       this.socket.emit('channel:join', { channelId });
     }
