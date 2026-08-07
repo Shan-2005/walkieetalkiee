@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Robofest 2.0 — Walkie Talkie</title>
+  
+  <!-- PWA Meta Tags -->
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#FACC15">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <link rel="apple-touch-icon" href="/assets/walkie-icon.png">
+  <link rel="icon" type="image/png" href="/assets/walkie-icon.png">
+
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
+
+  <!-- Stylesheet -->
+  <link rel="stylesheet" href="/css/styles.css">
+</head>
+<body>
+
+  <div id="app-root">
+
+    <!-- Toast Notifications Container -->
+    <div id="toast-container" class="toast-container"></div>
+
+    <!-- Mobile HTTP Security Alert Banner (hidden by default) -->
+    <div id="http-mic-alert" class="toast toast-warning hidden" style="position:fixed; bottom:16px; left:5%; width:90%; z-index:99999; pointer-events:auto; text-align:left;">
+      <span class="toast-icon">💡</span>
+      <div style="font-size:0.78rem; line-height:1.3;">
+        <strong>Mobile Mic Access Note:</strong><br>
+        If your phone blocks mic access over Wi-Fi HTTP, open <code>chrome://flags/#unsafely-treat-insecure-origin-as-secure</code> in phone Chrome and add this URL.
+      </div>
+    </div>
+
+    <!-- ==========================================================================
+         SCREEN 1: LOGIN / SPOC IDENTIFICATION
+         ========================================================================== -->
+    <section id="login-screen" class="view-screen active">
+      <div class="login-container">
+        
+        <div class="brand-section">
+          <img src="/assets/walkie-icon.png" alt="Robofest Walkie Talkie" class="app-logo">
+          <h1 class="app-title">ROBOFEST 2.0</h1>
+          <p class="app-subtitle">Official Walkie-Talkie Network</p>
+        </div>
+
+        <div class="glass-card">
+          <form id="login-form" class="login-form">
+            <div class="input-group">
+              <label for="user-name-input">Your Name</label>
+              <input type="text" id="user-name-input" class="styled-input" placeholder="e.g. Aadarsh" required autocomplete="off">
+            </div>
+
+            <div class="input-group">
+              <label for="user-role-select">Assigned Event / Role</label>
+              <select id="user-role-select" class="styled-select">
+                <option value="Drone SPOC">🚁 Drone SPOC</option>
+                <option value="War SPOC">⚔️ War SPOC</option>
+                <option value="Soccer SPOC">⚽ Soccer SPOC</option>
+                <option value="LFR SPOC">🤖 LFR SPOC</option>
+                <option value="Obs Race SPOC">🏃 Obs Race SPOC</option>
+                <option value="SUMO SPOC">🥊 SUMO SPOC</option>
+                <option value="EXPO SPOC">🎪 EXPO SPOC</option>
+                <option value="Boat SPOC">⛵ Boat SPOC</option>
+                <option value="Core Committee">⭐ Core Committee</option>
+                <option value="Volunteer">🤝 Team Volunteer</option>
+              </select>
+            </div>
+
+            <button type="submit" class="primary-btn">Connect & Allow Mic 🎙️</button>
+          </form>
+        </div>
+
+        <div class="brand-footer">
+          <p>SRM Institute of Science & Technology</p>
+          <p>Department of Mechatronics Engineering</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ==========================================================================
+         SCREEN 2: CHANNEL SELECTION GRID
+         ========================================================================== -->
+    <section id="channel-list-screen" class="view-screen hidden">
+      
+      <!-- Top User Bar -->
+      <div class="header-bar">
+        <div class="user-info">
+          <div class="user-avatar-main" id="display-user-avatar">RF</div>
+          <div class="user-text">
+            <h2 id="display-user-name">User Name</h2>
+            <span id="display-user-role">Role</span>
+          </div>
+        </div>
+
+        <div class="status-badge">
+          <span class="status-dot"></span>
+          <span>Online</span>
+        </div>
+      </div>
+
+      <h3 class="section-title">Select Channel</h3>
+
+      <!-- 10 Channel Cards Grid -->
+      <div id="channel-grid" class="channel-grid">
+        <!-- Rendered dynamically via ui.js -->
+      </div>
+
+    </section>
+
+    <!-- ==========================================================================
+         SCREEN 3: ACTIVE WALKIE-TALKIE CHANNEL VIEW
+         ========================================================================== -->
+    <section id="channel-view-screen" class="view-screen hidden">
+      <div class="channel-view-container">
+
+        <!-- Top Navigation -->
+        <div>
+          <div class="top-nav">
+            <button id="back-to-channels-btn" class="icon-btn" title="Back to Channels">←</button>
+            <div class="channel-title-group">
+              <h2><span id="active-channel-emoji">🚁</span> <span id="active-channel-title">Drone</span></h2>
+              <p id="active-channel-location">Milkha Singh Ground</p>
+            </div>
+            <div class="user-avatar" id="active-member-count">1</div>
+          </div>
+          <div id="channel-theme-bar" class="channel-accent-bar"></div>
+
+          <!-- Active Members List -->
+          <div class="members-bar">
+            <span style="font-size:0.75rem; color:var(--text-secondary); font-weight:600;">MEMBERS:</span>
+            <div id="member-avatars" class="member-avatars-scroll">
+              <!-- Avatar initials rendered dynamically -->
+            </div>
+          </div>
+        </div>
+
+        <!-- Center Waveform & Speaker Indicator -->
+        <div class="display-center">
+          
+          <div id="speaker-indicator" class="speaker-card hidden">
+            <div class="speaker-avatar">🎙️</div>
+            <h3 id="speaker-name" style="font-size:1.1rem; color:var(--accent-green);">Someone</h3>
+            <p style="font-size:0.8rem; color:var(--text-secondary);">is transmitting audio...</p>
+          </div>
+
+          <!-- Voice 5-Bar Waveform -->
+          <div id="audio-waveform" class="waveform-bars hidden">
+            <span></span>
+            <span></span>
+            <span></span>
+            <span></span>
+            <span></span>
+          </div>
+
+        </div>
+
+        <!-- Bottom Push-To-Talk Controls -->
+        <div class="ptt-container">
+          
+          <div class="ptt-btn-outer">
+            <button id="ptt-button" class="ptt-btn">
+              <span class="ptt-btn-icon">🎙️</span>
+              <span class="ptt-btn-label">PUSH TO TALK</span>
+            </button>
+            <div class="ptt-pulse-ring"></div>
+          </div>
+
+          <p id="ptt-status-text" class="ptt-status-text">Hold Volume Up or Press to Talk</p>
+
+        </div>
+
+      </div>
+    </section>
+
+  </div>
+
+  <!-- Socket.IO Client Library -->
+  <script src="/socket.io/socket.io.js"></script>
+
+  <!-- Application Modules -->
+  <script src="/js/channels.js"></script>
+  <script src="/js/socket.js"></script>
+  <script src="/js/audio.js"></script>
+  <script src="/js/ptt.js"></script>
+  <script src="/js/ui.js"></script>
+  <script src="/js/app.js"></script>
+
+</body>
+</html>

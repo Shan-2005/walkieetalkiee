@@ -1,0 +1,677 @@
+/* ==========================================================================
+   Robofest 2.0 Walkie-Talkie — Design System & Glassmorphic Stylesheet
+   ========================================================================== */
+
+:root {
+  --bg-primary: #0A0A0F;
+  --bg-surface: rgba(18, 18, 28, 0.75);
+  --bg-surface-hover: rgba(28, 28, 44, 0.85);
+  --glass-border: rgba(255, 255, 255, 0.08);
+  --glass-border-glow: rgba(250, 204, 21, 0.3);
+  
+  --text-primary: #F8FAFC;
+  --text-secondary: #94A3B8;
+  --text-muted: #64748B;
+  
+  --accent-gold: #FACC15;
+  --accent-cyan: #06B6D4;
+  --accent-red: #EF4444;
+  --accent-green: #10B981;
+
+  --font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --radius-lg: 20px;
+  --radius-md: 14px;
+  --radius-sm: 8px;
+
+  --transition-smooth: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+}
+
+body {
+  background-color: var(--bg-primary);
+  background-image: 
+    radial-gradient(circle at 50% 0%, rgba(250, 204, 21, 0.08), transparent 40%),
+    radial-gradient(circle at 100% 100%, rgba(6, 182, 212, 0.05), transparent 50%);
+  color: var(--text-primary);
+  font-family: var(--font-family);
+  min-height: 100vh;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  overflow-x: hidden;
+}
+
+#app-root {
+  width: 100%;
+  max-width: 480px; /* Mobile viewport standard */
+  min-height: 100vh;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  background: rgba(10, 10, 15, 0.85);
+  box-shadow: 0 0 50px rgba(0, 0, 0, 0.8);
+}
+
+/* --- Views Management --- */
+.view-screen {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  padding: 20px;
+  opacity: 1;
+  transform: translateY(0);
+  transition: var(--transition-smooth);
+}
+
+.view-screen.hidden {
+  display: none !important;
+  opacity: 0;
+  transform: translateY(10px);
+}
+
+/* ==========================================================================
+   Screen 1: Login / SPOC Info Screen
+   ========================================================================== */
+.login-container {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  text-align: center;
+  padding: 20px 0;
+}
+
+.brand-section {
+  margin-top: 30px;
+}
+
+.app-logo {
+  width: 90px;
+  height: 90px;
+  margin: 0 auto 16px;
+  border-radius: 22px;
+  box-shadow: 0 0 30px rgba(250, 204, 21, 0.25);
+  border: 1px solid var(--glass-border);
+}
+
+.app-title {
+  font-size: 1.6rem;
+  font-weight: 800;
+  letter-spacing: 1px;
+  background: linear-gradient(135deg, #FFF 30%, var(--accent-gold));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  margin-bottom: 6px;
+}
+
+.app-subtitle {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 2px;
+}
+
+.glass-card {
+  background: var(--bg-surface);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-lg);
+  padding: 24px 20px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+}
+
+.login-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.input-group {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+}
+
+.input-group label {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.styled-input, .styled-select {
+  width: 100%;
+  padding: 14px 16px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-md);
+  color: #FFF;
+  font-size: 0.95rem;
+  outline: none;
+  transition: var(--transition-smooth);
+}
+
+.styled-input:focus, .styled-select:focus {
+  border-color: var(--accent-gold);
+  box-shadow: 0 0 15px rgba(250, 204, 21, 0.2);
+}
+
+.styled-select option {
+  background-color: #12121C;
+  color: #FFF;
+}
+
+.primary-btn {
+  margin-top: 8px;
+  width: 100%;
+  padding: 16px;
+  border: none;
+  border-radius: var(--radius-md);
+  background: linear-gradient(135deg, #FACC15, #EAB308);
+  color: #0A0A0F;
+  font-size: 1rem;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 4px 20px rgba(250, 204, 21, 0.3);
+  transition: var(--transition-smooth);
+}
+
+.primary-btn:active {
+  transform: scale(0.98);
+}
+
+.brand-footer {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+/* ==========================================================================
+   Screen 2: Channel Grid List
+   ========================================================================== */
+.header-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 0 20px;
+}
+
+.user-info {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.user-avatar-main {
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--accent-gold), var(--accent-cyan));
+  color: #0A0A0F;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 800;
+  font-size: 1rem;
+}
+
+.user-text h2 {
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+.user-text span {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+}
+
+.status-badge {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.75rem;
+  padding: 6px 12px;
+  background: rgba(16, 185, 129, 0.1);
+  border: 1px solid rgba(16, 185, 129, 0.3);
+  color: var(--accent-green);
+  border-radius: 20px;
+}
+
+.status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent-green);
+  box-shadow: 0 0 8px var(--accent-green);
+}
+
+.section-title {
+  font-size: 0.9rem;
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+  color: var(--text-secondary);
+  margin-bottom: 12px;
+}
+
+.channel-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+  padding-bottom: 20px;
+}
+
+.channel-card {
+  background: var(--bg-surface);
+  backdrop-filter: blur(12px);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-md);
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  cursor: pointer;
+  position: relative;
+  overflow: hidden;
+  transition: var(--transition-smooth);
+}
+
+.channel-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 4px;
+  height: 100%;
+  background-color: var(--accent-color, var(--accent-gold));
+}
+
+.channel-card:active, .channel-card:hover {
+  transform: translateY(-2px);
+  border-color: var(--accent-color, var(--accent-gold));
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.5), 0 0 15px var(--accent-color);
+}
+
+.broadcast-card {
+  grid-column: span 2;
+  border: 1px solid rgba(250, 204, 21, 0.4);
+  background: linear-gradient(135deg, rgba(250, 204, 21, 0.1), rgba(18, 18, 28, 0.8));
+}
+
+.card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.channel-emoji {
+  font-size: 1.5rem;
+}
+
+.member-badge {
+  font-size: 0.7rem;
+  color: var(--text-secondary);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.badge-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent-green);
+}
+
+.channel-name {
+  font-size: 0.95rem;
+  font-weight: 700;
+  margin-bottom: 4px;
+}
+
+.channel-location {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  line-height: 1.2;
+}
+
+.channel-date {
+  display: inline-block;
+  margin-top: 6px;
+  font-size: 0.68rem;
+  color: var(--accent-gold);
+}
+
+.card-footer {
+  margin-top: 10px;
+}
+
+.join-btn {
+  width: 100%;
+  padding: 6px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
+  font-size: 0.75rem;
+  font-weight: 600;
+  pointer-events: none;
+}
+
+/* ==========================================================================
+   Screen 3: Walkie-Talkie Channel View
+   ========================================================================== */
+.channel-view-container {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding-bottom: 30px;
+}
+
+.top-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.icon-btn {
+  background: var(--bg-surface);
+  border: 1px solid var(--glass-border);
+  color: #FFF;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  font-size: 1.2rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: var(--transition-smooth);
+}
+
+.icon-btn:active {
+  transform: scale(0.9);
+}
+
+.channel-title-group {
+  text-align: center;
+}
+
+.channel-title-group h2 {
+  font-size: 1.1rem;
+  font-weight: 800;
+}
+
+.channel-title-group p {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+}
+
+.channel-accent-bar {
+  height: 3px;
+  width: 100%;
+  border-radius: 2px;
+  margin-bottom: 16px;
+}
+
+/* Active Members Bar */
+.members-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: var(--bg-surface);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-md);
+  padding: 10px 14px;
+  margin-bottom: 20px;
+}
+
+.member-avatars-scroll {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  flex: 1;
+}
+
+.user-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid var(--glass-border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--accent-gold);
+  flex-shrink: 0;
+}
+
+/* Center Display & Waveform */
+.display-center {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  margin: 20px 0;
+}
+
+.speaker-card {
+  text-align: center;
+  margin-bottom: 20px;
+}
+
+.speaker-avatar {
+  width: 70px;
+  height: 70px;
+  margin: 0 auto 10px;
+  border-radius: 50%;
+  background: radial-gradient(circle, var(--accent-green), #047857);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 2rem;
+  box-shadow: 0 0 30px var(--accent-green);
+  animation: pulseAvatar 1.5s infinite alternate;
+}
+
+@keyframes pulseAvatar {
+  0% { transform: scale(1); box-shadow: 0 0 15px var(--accent-green); }
+  100% { transform: scale(1.08); box-shadow: 0 0 35px var(--accent-green); }
+}
+
+/* 5-Bar Voice Waveform Animation */
+.waveform-bars {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 40px;
+  margin-top: 15px;
+}
+
+.waveform-bars span {
+  width: 6px;
+  height: 10px;
+  background: var(--accent-gold);
+  border-radius: 3px;
+  animation: waveBar 0.8s infinite ease-in-out alternate;
+}
+
+.waveform-bars span:nth-child(1) { animation-delay: 0.1s; }
+.waveform-bars span:nth-child(2) { animation-delay: 0.3s; }
+.waveform-bars span:nth-child(3) { animation-delay: 0.5s; }
+.waveform-bars span:nth-child(4) { animation-delay: 0.2s; }
+.waveform-bars span:nth-child(5) { animation-delay: 0.4s; }
+
+@keyframes waveBar {
+  0% { height: 8px; }
+  100% { height: 36px; }
+}
+
+/* ==========================================================================
+   PTT Circular Button Controls
+   ========================================================================== */
+.ptt-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+}
+
+.ptt-btn-outer {
+  position: relative;
+  width: 140px;
+  height: 140px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.ptt-btn {
+  width: 120px;
+  height: 120px;
+  border-radius: 50%;
+  background: radial-gradient(circle, #1E1E2E, #0F0F17);
+  border: 4px solid var(--channel-accent, var(--accent-gold));
+  color: var(--text-primary);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  cursor: pointer;
+  box-shadow: 0 0 25px rgba(0, 0, 0, 0.8), inset 0 0 15px rgba(255, 255, 255, 0.05);
+  transition: var(--transition-smooth);
+  position: relative;
+  z-index: 2;
+}
+
+.ptt-btn-icon {
+  font-size: 2.2rem;
+}
+
+.ptt-btn-label {
+  font-size: 0.85rem;
+  font-weight: 800;
+  letter-spacing: 1px;
+}
+
+/* PTT Ripple Rings */
+.ptt-pulse-ring {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  border: 2px solid var(--channel-accent, var(--accent-gold));
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* PTT Button Dynamic States */
+.ptt-btn.state-requesting {
+  border-color: var(--accent-gold);
+  box-shadow: 0 0 35px var(--accent-gold);
+}
+
+.ptt-btn.state-transmitting {
+  border-color: var(--accent-red);
+  background: radial-gradient(circle, #7F1D1D, #450A0A);
+  box-shadow: 0 0 45px var(--accent-red);
+}
+
+.ptt-btn.state-transmitting + .ptt-pulse-ring {
+  animation: rippleRing 1.2s infinite ease-out;
+  border-color: var(--accent-red);
+}
+
+.ptt-btn.state-receiving {
+  border-color: var(--accent-green);
+  box-shadow: 0 0 35px var(--accent-green);
+}
+
+.ptt-btn.state-blocked {
+  border-color: #64748B;
+  background: #181824;
+  opacity: 0.6;
+}
+
+@keyframes rippleRing {
+  0% { transform: scale(1); opacity: 0.8; }
+  100% { transform: scale(1.4); opacity: 0; }
+}
+
+.ptt-status-text {
+  font-size: 0.88rem;
+  font-weight: 600;
+  text-align: center;
+}
+
+/* ==========================================================================
+   Toast Notifications
+   ========================================================================== */
+.toast-container {
+  position: fixed;
+  top: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 90%;
+  max-width: 420px;
+  z-index: 9999;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  pointer-events: none;
+}
+
+.toast {
+  background: rgba(18, 18, 28, 0.95);
+  backdrop-filter: blur(16px);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-md);
+  padding: 12px 16px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: #FFF;
+  font-size: 0.85rem;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+  animation: slideDown 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.toast-warning { border-left: 4px solid var(--accent-gold); }
+.toast-error { border-left: 4px solid var(--accent-red); }
+.toast-info { border-left: 4px solid var(--accent-cyan); }
+
+.toast.fade-out {
+  opacity: 0;
+  transform: translateY(-10px);
+  transition: all 0.3s ease;
+}
+
+@keyframes slideDown {
+  from { opacity: 0; transform: translateY(-20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* Responsive fixes */
+@media (max-width: 360px) {
+  .channel-grid {
+    grid-template-columns: 1fr;
+  }
+  .broadcast-card {
+    grid-column: span 1;
+  }
+}

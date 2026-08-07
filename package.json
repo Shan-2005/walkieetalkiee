@@ -1,0 +1,16 @@
+{
+  "name": "robofest-walkie-talkie",
+  "version": "1.0.0",
+  "description": "Robofest 2.0 Walkie-Talkie Web Application PWA",
+  "main": "server/server.js",
+  "scripts": {
+    "start": "node server/server.js",
+    "dev": "node --watch server/server.js"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "socket.io": "^4.7.5"
+  }
+}

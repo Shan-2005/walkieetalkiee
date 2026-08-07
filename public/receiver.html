@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Robofest 2.0 — Mobile Receiver Station</title>
+  
+  <link rel="icon" type="image/png" href="/assets/walkie-icon.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&family=Roboto+Mono:wght@400;600&display=swap" rel="stylesheet">
+
+  <link rel="stylesheet" href="/css/receiver.css">
+</head>
+<body>
+
+  <!-- Audio Autoplay Mobile Touch Overlay -->
+  <div id="audio-unlock-overlay" class="audio-unlock-overlay">
+    <div class="unlock-pulse-icon">📻</div>
+    <h2 style="font-size:1.4rem; font-weight:800;">Robofest Receiver Station</h2>
+    <p style="font-size:0.88rem; color:var(--text-dim); max-width:320px;">Tap below to enable multi-channel live audio streaming on your mobile phone.</p>
+    <button id="unlock-audio-btn" class="unlock-btn">Tap to Start Receiver Audio 🔊</button>
+  </div>
+
+  <div class="receiver-dashboard">
+    
+    <!-- Top Master Control Bar -->
+    <header class="header-card">
+      <div class="brand-info">
+        <h1>ROBOFEST 2.0</h1>
+        <p>Command Center :: Mobile Receiver Station</p>
+      </div>
+
+      <!-- Real-time 60fps Canvas Spectrum Visualizer -->
+      <div class="spectrum-box">
+        <canvas id="spectrum-canvas" width="450" height="50"></canvas>
+      </div>
+
+      <div class="master-controls">
+        <button id="master-mute-btn" class="master-btn" onclick="window.receiverEngine.toggleMasterMute()">🔊 AUDIO ACTIVE</button>
+        <span style="font-size:0.85rem; color:var(--text-dim);">Users Online: <strong id="receiver-total-online" style="color:var(--accent-gold);">0</strong></span>
+      </div>
+    </header>
+
+    <!-- Dashboard Content Grid -->
+    <div class="dashboard-grid-layout">
+      
+      <!-- 10 Channels Monitoring Grid -->
+      <main class="channels-monitor-grid">
+        
+        <!-- Broadcast Channel -->
+        <div class="receiver-card" data-receiver-channel="all" style="--card-color: #FACC15; grid-column: 1 / -1;">
+          <div class="card-top">
+            <div class="card-title-group">
+              <span class="card-emoji">📢</span>
+              <div class="card-title-text">
+                <h3>ALL CHANNELS (GLOBAL BROADCAST)</h3>
+                <p>Broadcasts to all connected users</p>
+              </div>
+            </div>
+            <span class="live-speaker-tag" style="display:none;">🎙️ Someone</span>
+          </div>
+          <div class="card-controls-row">
+            <div class="volume-slider-group">
+              <span>VOL</span>
+              <input type="range" class="vol-slider" min="0" max="2" step="0.1" value="1" oninput="window.receiverEngine.setChannelVolume('all', this.value)">
+            </div>
+            <button class="ctrl-btn" data-mute-btn="all" onclick="window.receiverEngine.toggleMuteChannel('all')">MUTE</button>
+            <button class="ctrl-btn" data-solo-btn="all" onclick="window.receiverEngine.toggleSoloChannel('all')">SOLO</button>
+          </div>
+        </div>
+
+        <!-- Channel 1: Drone -->
+        <div class="receiver-card" data-receiver-channel="drone" style="--card-color: #FF6B35;">
+          <div class="card-top">
+            <div class="card-title-group">
+              <span class="card-emoji">🚁</span>
+              <div class="card-title-text">
+                <h3>Drone</h3>
+                <p class="channel-online-count">0 online</p>
+              </div>
+            </div>
+            <span class="live-speaker-tag" style="display:none;"></span>
+          </div>
+          <div class="card-controls-row">
+            <div class="volume-slider-group">
+              <span>VOL</span>
+              <input type="range" class="vol-slider" min="0" max="2" step="0.1" value="1" oninput="window.receiverEngine.setChannelVolume('drone', this.value)">
+            </div>
+            <button class="ctrl-btn" data-mute-btn="drone" onclick="window.receiverEngine.toggleMuteChannel('drone')">MUTE</button>
+            <button class="ctrl-btn" data-solo-btn="drone" onclick="window.receiverEngine.toggleSoloChannel('drone')">SOLO</button>
+          </div>
+        </div>
+
+        <!-- Channel 2: War -->
+        <div class="receiver-card" data-receiver-channel="war" style="--card-color: #DC2626;">
+          <div class="card-top">
+            <div class="card-title-group">
+              <span class="card-emoji">⚔️</span>
+              <div class="card-title-text">
+                <h3>War</h3>
+                <p class="channel-online-count">0 online</p>
+              </div>
+            </div>
+            <span class="live-speaker-tag" style="display:none;"></span>
+          </div>
+          <div class="card-controls-row">
+            <div class="volume-slider-group">
+              <span>VOL</span>
+              <input type="range" class="vol-slider" min="0" max="2" step="0.1" value="1" oninput="window.receiverEngine.setChannelVolume('war', this.value)">
+            </div>
+            <button class="ctrl-btn" data-mute-btn="war" onclick="window.receiverEngine.toggleMuteChannel('war')">MUTE</button>
+            <button class="ctrl-btn" data-solo-btn="war" onclick="window.receiverEngine.toggleSoloChannel('war')">SOLO</button>
+          </div>
+        </div>
+
+        <!-- Channel 3: Soccer 1v1 -->
+        <div class="receiver-card" data-receiver-channel="soccer1v1" style="--card-color: #16A34A;">
+          <div class="card-top">
+            <div class="card-title-group">
+              <span class="card-emoji">⚽</span>
+              <div class="card-title-text">
+                <h3>Soccer 1v1</h3>
+                <p class="channel-online-count">0 online</p>
+              </div>
+            </div>
+            <span class="live-speaker-tag" style="display:none;"></span>
+          </div>
+          <div class="card-controls-row">
+            <div class="volume-slider-group">
+              <span>VOL</span>
+              <input type="range" class="vol-slider" min="0" max="2" step="0.1" value="1" oninput="window.receiverEngine.setChannelVolume('soccer1v1', this.value)">
+            </div>
+            <button class="ctrl-btn" data-mute-btn="soccer1v1" onclick="window.receiverEngine.toggleMuteChannel('soccer1v1')">MUTE</button>
+            <button class="ctrl-btn" data-solo-btn="soccer1v1" onclick="window.receiverEngine.toggleSoloChannel('soccer1v1')">SOLO</button>
+          </div>
+        </div>
+
+        <!-- Channel 4: Soccer 2v2 -->
+        <div class="receiver-card" data-receiver-channel="soccer2v2" style="--card-color: #15803D;">
+          <div class="card-top">
+            <div class="card-title-group">
+              <span class="card-emoji">⚽</span>
+              <div class="card-title-text">
+                <h3>Soccer 2v2</h3>
+                <p class="channel-online-count">0 online</p>
+              </div>
+            </div>
+            <span class="live-speaker-tag" style="display:none;"></span>
+          </div>
+          <div class="card-controls-row">
+            <div class="volume-slider-group">
+              <span>VOL</span>
+              <input type="range" class="vol-slider" min="0" max="2" step="0.1" value="1" oninput="window.receiverEngine.setChannelVolume('soccer2v2', this.value)">
+            </div>
+            <button class="ctrl-btn" data-mute-btn="soccer2v2" onclick="window.receiverEngine.toggleMuteChannel('soccer2v2')">MUTE</button>
+            <button class="ctrl-btn" data-solo-btn="soccer2v2" onclick="window.receiverEngine.toggleSoloChannel('soccer2v2')">SOLO</button>
+          </div>
+        </div>
+
+        <!-- Channel 5: LFR -->
+        <div class="receiver-card" data-receiver-channel="lfr" style="--card-color: #2563EB;">
+          <div class="card-top">
+            <div class="card-title-group">
+              <span class="card-emoji">🤖</span>
+              <div class="card-title-text">
+                <h3>LFR</h3>
+                <p class="channel-online-count">0 online</p>
+              </div>
+            </div>
+            <span class="live-speaker-tag" style="display:none;"></span>
+          </div>
+          <div class="card-controls-row">
+            <div class="volume-slider-group">
+              <span>VOL</span>
+              <input type="range" class="vol-slider" min="0" max="2" step="0.1" value="1" oninput="window.receiverEngine.setChannelVolume('lfr', this.value)">
+            </div>
+            <button class="ctrl-btn" data-mute-btn="lfr" onclick="window.receiverEngine.toggleMuteChannel('lfr')">MUTE</button>
+            <button class="ctrl-btn" data-solo-btn="lfr" onclick="window.receiverEngine.toggleSoloChannel('lfr')">SOLO</button>
+          </div>
+        </div>
+
+        <!-- Channel 6: Obs Race -->
+        <div class="receiver-card" data-receiver-channel="obsrace" style="--card-color: #7C3AED;">
+          <div class="card-top">
+            <div class="card-title-group">
+              <span class="card-emoji">🏃</span>
+              <div class="card-title-text">
+                <h3>Obs Race</h3>
+                <p class="channel-online-count">0 online</p>
+              </div>
+            </div>
+            <span class="live-speaker-tag" style="display:none;"></span>
+          </div>
+          <div class="card-controls-row">
+            <div class="volume-slider-group">
+              <span>VOL</span>
+              <input type="range" class="vol-slider" min="0" max="2" step="0.1" value="1" oninput="window.receiverEngine.setChannelVolume('obsrace', this.value)">
+            </div>
+            <button class="ctrl-btn" data-mute-btn="obsrace" onclick="window.receiverEngine.toggleMuteChannel('obsrace')">MUTE</button>
+            <button class="ctrl-btn" data-solo-btn="obsrace" onclick="window.receiverEngine.toggleSoloChannel('obsrace')">SOLO</button>
+          </div>
+        </div>
+
+        <!-- Channel 7: SUMO -->
+        <div class="receiver-card" data-receiver-channel="sumo" style="--card-color: #EA580C;">
+          <div class="card-top">
+            <div class="card-title-group">
+              <span class="card-emoji">🥊</span>
+              <div class="card-title-text">
+                <h3>SUMO</h3>
+                <p class="channel-online-count">0 online</p>
+              </div>
+            </div>
+            <span class="live-speaker-tag" style="display:none;"></span>
+          </div>
+          <div class="card-controls-row">
+            <div class="volume-slider-group">
+              <span>VOL</span>
+              <input type="range" class="vol-slider" min="0" max="2" step="0.1" value="1" oninput="window.receiverEngine.setChannelVolume('sumo', this.value)">
+            </div>
+            <button class="ctrl-btn" data-mute-btn="sumo" onclick="window.receiverEngine.toggleMuteChannel('sumo')">MUTE</button>
+            <button class="ctrl-btn" data-solo-btn="sumo" onclick="window.receiverEngine.toggleSoloChannel('sumo')">SOLO</button>
+          </div>
+        </div>
+
+        <!-- Channel 8: EXPO -->
+        <div class="receiver-card" data-receiver-channel="expo" style="--card-color: #0891B2;">
+          <div class="card-top">
+            <div class="card-title-group">
+              <span class="card-emoji">🎪</span>
+              <div class="card-title-text">
+                <h3>EXPO</h3>
+                <p class="channel-online-count">0 online</p>
+              </div>
+            </div>
+            <span class="live-speaker-tag" style="display:none;"></span>
+          </div>
+          <div class="card-controls-row">
+            <div class="volume-slider-group">
+              <span>VOL</span>
+              <input type="range" class="vol-slider" min="0" max="2" step="0.1" value="1" oninput="window.receiverEngine.setChannelVolume('expo', this.value)">
+            </div>
+            <button class="ctrl-btn" data-mute-btn="expo" onclick="window.receiverEngine.toggleMuteChannel('expo')">MUTE</button>
+            <button class="ctrl-btn" data-solo-btn="expo" onclick="window.receiverEngine.toggleSoloChannel('expo')">SOLO</button>
+          </div>
+        </div>
+
+        <!-- Channel 9: Boat -->
+        <div class="receiver-card" data-receiver-channel="boat" style="--card-color: #0284C7;">
+          <div class="card-top">
+            <div class="card-title-group">
+              <span class="card-emoji">⛵</span>
+              <div class="card-title-text">
+                <h3>Boat</h3>
+                <p class="channel-online-count">0 online</p>
+              </div>
+            </div>
+            <span class="live-speaker-tag" style="display:none;"></span>
+          </div>
+          <div class="card-controls-row">
+            <div class="volume-slider-group">
+              <span>VOL</span>
+              <input type="range" class="vol-slider" min="0" max="2" step="0.1" value="1" oninput="window.receiverEngine.setChannelVolume('boat', this.value)">
+            </div>
+            <button class="ctrl-btn" data-mute-btn="boat" onclick="window.receiverEngine.toggleMuteChannel('boat')">MUTE</button>
+            <button class="ctrl-btn" data-solo-btn="boat" onclick="window.receiverEngine.toggleSoloChannel('boat')">SOLO</button>
+          </div>
+        </div>
+
+      </main>
+
+      <!-- Transmission Terminal Activity Log -->
+      <aside class="terminal-card">
+        <div class="terminal-header">
+          <h3>SYSTEM LOG STREAM</h3>
+          <span style="font-size:0.7rem; color:#10B981;">● LIVE FEED</span>
+        </div>
+        <div id="terminal-logs" class="terminal-body">
+          <div class="log-entry">[SYSTEM] Mobile Receiver Station initialized.</div>
+        </div>
+      </aside>
+
+    </div>
+
+  </div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="/js/receiver.js"></script>
+
+</body>
+</html>
