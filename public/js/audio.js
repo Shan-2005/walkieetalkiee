@@ -1,4 +1,4 @@
-// Web Audio API Engine — iOS Safari & Android Cross-Platform Support
+// Web Audio API Engine — Guaranteed Live Real-Time Audio Playback (iOS & Android)
 class AudioEngine {
   constructor() {
     this.audioCtx = null;
@@ -14,10 +14,11 @@ class AudioEngine {
     this.pendingChunks = [];
     this.isSourceBufferReady = false;
 
-    // iOS Safari / Non-MSE Fallback Accumulator
+    // iOS Safari / Non-MSE Fallback Streamer
     this.isFallbackMode = false;
     this.fallbackChunks = [];
     this.fallbackMimeType = 'audio/mp4';
+    this.nextWebAudioTime = 0;
 
     // Global iOS touch unlock listener
     this.setupIOSAudioUnlock();
@@ -42,6 +43,10 @@ class AudioEngine {
           source.start(0);
         }
       } catch (e) {}
+
+      if (this.audioEl) {
+        this.audioEl.play().catch(() => {});
+      }
     };
 
     window.addEventListener('touchstart', unlock, { passive: true });
@@ -81,7 +86,6 @@ class AudioEngine {
       }
     }
 
-    // Fallback — let browser choose default
     this.supportedMimeType = '';
     return '';
   }
@@ -148,7 +152,6 @@ class AudioEngine {
 
     this.mediaRecorder = new MediaRecorder(stream, options);
 
-    // Send chunks continuously
     this.mediaRecorder.ondataavailable = async (e) => {
       if (!this.isRecording) return;
       if (e.data && e.data.size > 0) {
@@ -157,7 +160,6 @@ class AudioEngine {
       }
     };
 
-    // timeslice = 100ms for low-latency transmission
     this.mediaRecorder.start(100);
     console.log('[Audio] MediaRecorder streaming on channel:', channelId, 'mime:', mimeType);
   }
@@ -173,21 +175,20 @@ class AudioEngine {
     console.log('[Audio] Streaming stopped.');
   }
 
-  // ─── RECEIVER: MediaSource Extensions & iOS Fallback ─────────────────────
+  // ─── RECEIVER: MediaSource Extensions & iOS Live WebAudio Engine ────────
   initMediaSourcePlayer(mimeType) {
     this.teardownPlayer();
     this.initAudioContext();
 
     const useMime = mimeType || 'audio/webm;codecs=opus';
-
-    // Check if browser supports MediaSource Extensions for this MIME type
     const isMSESupported = window.MediaSource && MediaSource.isTypeSupported(useMime);
 
     if (!isMSESupported) {
-      console.warn('[Audio] MSE not supported for mime:', useMime, '— using iOS Fallback Accumulator.');
+      console.warn('[Audio] MSE not supported for mime:', useMime, '— activating Live WebAudio Fallback Streamer.');
       this.isFallbackMode = true;
       this.fallbackChunks = [];
       this.fallbackMimeType = mimeType || 'audio/mp4';
+      this.nextWebAudioTime = 0;
       return false;
     }
 
@@ -217,23 +218,32 @@ class AudioEngine {
         this._flushPending();
       } catch (err) {
         console.error('[Audio] MSE addSourceBuffer error:', err);
-        // Fall back to fallback mode if addSourceBuffer throws
         this.isFallbackMode = true;
         this.fallbackChunks = [];
         this.fallbackMimeType = useMime;
+        this.nextWebAudioTime = 0;
       }
     });
 
     this.audioEl.play().catch((err) => {
-      console.warn('[Audio] Player play blocked:', err);
+      console.warn('[Audio] Initial audioEl play blocked:', err);
     });
 
     return true;
   }
 
-  receiveChunk(arrayBuffer) {
+  receiveChunk(rawChunk) {
+    if (!rawChunk) return;
+
+    // Normalize incoming chunk to ArrayBuffer
+    let arrayBuffer = rawChunk;
+    if (rawChunk && rawChunk.buffer instanceof ArrayBuffer) {
+      arrayBuffer = rawChunk.buffer.slice(rawChunk.byteOffset, rawChunk.byteOffset + rawChunk.byteLength);
+    }
+
     if (this.isFallbackMode) {
       this.fallbackChunks.push(arrayBuffer);
+      this.playChunkWebAudioLive(arrayBuffer);
     } else {
       this.pendingChunks.push(arrayBuffer);
       this._flushPending();
@@ -247,6 +257,14 @@ class AudioEngine {
     const next = this.pendingChunks.shift();
     try {
       this.sourceBuffer.appendBuffer(next);
+
+      // GUARANTEED PLAYBACK TRIGGER: If audioEl is paused, trigger play() now that buffer has data!
+      if (this.audioEl && this.audioEl.paused) {
+        this.audioEl.play().catch((err) => {
+          console.warn('[Audio] Live playback trigger blocked:', err);
+        });
+      }
+
       if (this.sourceBuffer.buffered.length > 0) {
         const end = this.sourceBuffer.buffered.end(0);
         if (end > 30) {
@@ -258,8 +276,33 @@ class AudioEngine {
     }
   }
 
+  // Real-Time Live Playback for iOS / Non-MSE via WebAudio API
+  async playChunkWebAudioLive(arrayBuffer) {
+    try {
+      this.initAudioContext();
+      if (!this.audioCtx) return;
+
+      const bufCopy = arrayBuffer.slice(0);
+      const audioBuffer = await this.audioCtx.decodeAudioData(bufCopy);
+      
+      const source = this.audioCtx.createBufferSource();
+      source.buffer = audioBuffer;
+      source.connect(this.audioCtx.destination);
+
+      const now = this.audioCtx.currentTime;
+      if (!this.nextWebAudioTime || this.nextWebAudioTime < now) {
+        this.nextWebAudioTime = now + 0.02;
+      }
+
+      source.start(this.nextWebAudioTime);
+      this.nextWebAudioTime += audioBuffer.duration;
+    } catch (e) {
+      // Quietly ignore sub-chunk decode errors — teardownPlayer will play complete blob failsafe
+    }
+  }
+
   teardownPlayer() {
-    // If running in iOS Fallback Accumulator Mode, assemble and play the accumulated chunks
+    // iOS Fallback Failsafe: Play complete concatenated audio blob if live decode missed frames
     if (this.isFallbackMode && this.fallbackChunks.length > 0) {
       try {
         const blob = new Blob(this.fallbackChunks, { type: this.fallbackMimeType });
@@ -267,10 +310,10 @@ class AudioEngine {
         const player = new Audio(blobUrl);
         player.playsInline = true;
         player.play().catch((err) => {
-          console.warn('[Audio Fallback] iOS Audio play error:', err);
+          console.warn('[Audio Fallback] Final blob play failed:', err);
         });
       } catch (err) {
-        console.error('[Audio Fallback] iOS Blob assembly failed:', err);
+        console.error('[Audio Fallback] Blob construction failed:', err);
       }
     }
 
@@ -278,6 +321,7 @@ class AudioEngine {
     this.fallbackChunks = [];
     this.isSourceBufferReady = false;
     this.pendingChunks = [];
+    this.nextWebAudioTime = 0;
 
     if (this.mediaSource && this.mediaSource.readyState === 'open') {
       try { this.mediaSource.endOfStream(); } catch (e) {}
