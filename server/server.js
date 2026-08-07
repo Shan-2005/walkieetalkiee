@@ -57,6 +57,76 @@ app.use(express.static(path.join(__dirname, '../public'), {
 const users = new Map();
 const channels = new Map();
 const floorOwner = new Map();
+const floorTimers = new Map(); // channelId -> { maxTimer, idleTimer }
+
+function releaseFloor(channelId, socketId = null, reason = 'released') {
+  const currentOwner = floorOwner.get(channelId);
+  if (!currentOwner) return;
+
+  // Only release if socketId matches OR if force-releasing (socketId === null)
+  if (!socketId || currentOwner === socketId) {
+    floorOwner.delete(channelId);
+
+    if (floorTimers.has(channelId)) {
+      const timers = floorTimers.get(channelId);
+      clearTimeout(timers.maxTimer);
+      clearTimeout(timers.idleTimer);
+      floorTimers.delete(channelId);
+    }
+
+    const user = currentOwner ? users.get(currentOwner) : null;
+    const releasePayload = {
+      channelId,
+      socketId: currentOwner,
+      userName: user ? user.name : 'User',
+      reason
+    };
+
+    io.to(channelId).emit('ptt:released', releasePayload);
+    console.log(`[Floor Released] Channel: ${channelId} (owner: ${currentOwner}, reason: ${reason})`);
+  }
+}
+
+function grantFloor(channelId, socketId, mimeType) {
+  floorOwner.set(channelId, socketId);
+  const user = users.get(socketId);
+
+  // Maximum single transmission duration: 15 seconds limit
+  const maxTimer = setTimeout(() => {
+    console.log(`[Floor Watchdog] Channel ${channelId} reached 15s max transmission limit.`);
+    releaseFloor(channelId, socketId, 'max_duration');
+  }, 15000);
+
+  // Audio chunk idle watchdog: 3 seconds without audio chunks auto-releases floor
+  const idleTimer = setTimeout(() => {
+    console.log(`[Floor Watchdog] Channel ${channelId} idle (no audio chunks for 3s).`);
+    releaseFloor(channelId, socketId, 'audio_idle');
+  }, 3000);
+
+  floorTimers.set(channelId, { maxTimer, idleTimer });
+
+  const activePayload = {
+    channelId,
+    userId: socketId,
+    userName: user ? user.name : 'Speaker',
+    role: user ? user.role : 'Team Member',
+    mimeType: mimeType || ''
+  };
+
+  io.to(channelId).emit('ptt:active', activePayload);
+  console.log(`[Floor Granted] ${user ? user.name : socketId} on ${channelId}`);
+}
+
+function touchFloorAudioActivity(channelId, socketId) {
+  if (floorOwner.get(channelId) === socketId && floorTimers.has(channelId)) {
+    const timers = floorTimers.get(channelId);
+    clearTimeout(timers.idleTimer);
+    timers.idleTimer = setTimeout(() => {
+      console.log(`[Floor Watchdog] Channel ${channelId} idle (no audio chunks for 3s).`);
+      releaseFloor(channelId, socketId, 'audio_idle');
+    }, 3000);
+  }
+}
 
 function getChannelMembers(channelId) {
   const memberSockets = channels.get(channelId) || new Set();
@@ -168,8 +238,7 @@ io.on('connection', (socket) => {
       if (channels.has(oldChannel)) {
         channels.get(oldChannel).delete(socket.id);
         if (floorOwner.get(oldChannel) === socket.id) {
-          floorOwner.delete(oldChannel);
-          io.to(oldChannel).emit('ptt:released', { channelId: oldChannel, socketId: socket.id });
+          releaseFloor(oldChannel, socket.id, 'channel_switch');
         }
       }
       io.to(oldChannel).emit('channel:members', {
@@ -193,6 +262,7 @@ io.on('connection', (socket) => {
       members: getChannelMembers(channelId)
     });
 
+    // Verify current floor holder is active
     const currentFloorHolder = floorOwner.get(channelId);
     let floorInfo = null;
     if (currentFloorHolder) {
@@ -203,13 +273,16 @@ io.on('connection', (socket) => {
           userName: holderUser.name,
           role: holderUser.role
         };
+      } else {
+        // Stale owner — clean up
+        releaseFloor(channelId, currentFloorHolder, 'stale_owner_on_join');
       }
     }
 
     socket.emit('channel:joined', {
       channelId,
       members: getChannelMembers(channelId),
-      floorActive: !!currentFloorHolder,
+      floorActive: !!floorOwner.get(channelId),
       floorHolder: floorInfo
     });
 
@@ -227,8 +300,7 @@ io.on('connection', (socket) => {
       if (channels.has(channelId)) {
         channels.get(channelId).delete(socket.id);
         if (floorOwner.get(channelId) === socket.id) {
-          floorOwner.delete(channelId);
-          io.to(channelId).emit('ptt:released', { channelId, socketId: socket.id });
+          releaseFloor(channelId, socket.id, 'channel_leave');
         }
       }
 
@@ -254,21 +326,22 @@ io.on('connection', (socket) => {
       return socket.emit('ptt:denied', { reason: 'No active channel' });
     }
 
-    const currentOwner = floorOwner.get(targetChannel);
+    let currentOwner = floorOwner.get(targetChannel);
+
+    // Stale owner verification: if current owner socket is disconnected or not in channel, force release!
+    if (currentOwner) {
+      const ownerSocket = io.sockets.sockets.get(currentOwner);
+      const ownerUser = users.get(currentOwner);
+      if (!ownerSocket || !ownerSocket.connected || !ownerUser || ownerUser.channel !== targetChannel) {
+        console.log(`[Floor Stale] Cleaning stale owner ${currentOwner} on channel ${targetChannel}`);
+        releaseFloor(targetChannel, currentOwner, 'stale_owner_cleaned');
+        currentOwner = null;
+      }
+    }
 
     if (!currentOwner || currentOwner === socket.id) {
-      floorOwner.set(targetChannel, socket.id);
       socket.emit('ptt:granted', { channelId: targetChannel });
-
-      const activePayload = {
-        channelId: targetChannel,
-        userId: socket.id,
-        userName: user.name,
-        role: user.role,
-        mimeType: mimeType || ''
-      };
-
-      io.to(targetChannel).emit('ptt:active', activePayload);
+      grantFloor(targetChannel, socket.id, mimeType);
     } else {
       const ownerUser = users.get(currentOwner);
       const ownerName = ownerUser ? ownerUser.name : 'Someone';
@@ -286,15 +359,7 @@ io.on('connection', (socket) => {
     if (!targetChannel) return;
 
     if (floorOwner.get(targetChannel) === socket.id) {
-      floorOwner.delete(targetChannel);
-
-      const releasePayload = {
-        channelId: targetChannel,
-        socketId: socket.id,
-        userName: user ? user.name : 'User'
-      };
-
-      io.to(targetChannel).emit('ptt:released', releasePayload);
+      releaseFloor(targetChannel, socket.id, 'user_released');
     }
   });
 
@@ -304,6 +369,8 @@ io.on('connection', (socket) => {
 
     const targetChannel = channelId || user.channel;
     if (!targetChannel) return;
+
+    touchFloorAudioActivity(targetChannel, socket.id);
 
     const chunkPayload = {
       channelId: targetChannel,
@@ -325,9 +392,7 @@ io.on('connection', (socket) => {
       if (userChannel && userChannel !== 'all_subscribed' && channels.has(userChannel)) {
         channels.get(userChannel).delete(socket.id);
         if (floorOwner.get(userChannel) === socket.id) {
-          floorOwner.delete(userChannel);
-          const payload = { channelId: userChannel, socketId: socket.id, userName: user.name };
-          io.to(userChannel).emit('ptt:released', payload);
+          releaseFloor(userChannel, socket.id, 'disconnect');
         }
 
         io.to(userChannel).emit('channel:members', {
