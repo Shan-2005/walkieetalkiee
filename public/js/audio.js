@@ -1,4 +1,4 @@
-// Web Audio API Engine — MediaRecorder Sender + MediaSource Receiver
+// Web Audio API Engine — iOS Safari & Android Cross-Platform Support
 class AudioEngine {
   constructor() {
     this.audioCtx = null;
@@ -6,12 +6,47 @@ class AudioEngine {
     this.mediaRecorder = null;
     this.isRecording = false;
     this.supportedMimeType = null;
-    // Playback via MediaSource Extensions
+
+    // Playback via MediaSource Extensions (MSE)
     this.audioEl = null;
     this.mediaSource = null;
     this.sourceBuffer = null;
     this.pendingChunks = [];
     this.isSourceBufferReady = false;
+
+    // iOS Safari / Non-MSE Fallback Accumulator
+    this.isFallbackMode = false;
+    this.fallbackChunks = [];
+    this.fallbackMimeType = 'audio/mp4';
+
+    // Global iOS touch unlock listener
+    this.setupIOSAudioUnlock();
+  }
+
+  // Global listener to unlock iOS WebAudio & HTML5 audio context on user gesture
+  setupIOSAudioUnlock() {
+    const unlock = () => {
+      if (!this.audioCtx) {
+        this.initAudioContext();
+      } else if (this.audioCtx.state === 'suspended') {
+        this.audioCtx.resume();
+      }
+
+      // Play short silent buffer on AudioContext destination for WebAudio warm-up
+      try {
+        if (this.audioCtx) {
+          const buffer = this.audioCtx.createBuffer(1, 1, 22050);
+          const source = this.audioCtx.createBufferSource();
+          source.buffer = buffer;
+          source.connect(this.audioCtx.destination);
+          source.start(0);
+        }
+      } catch (e) {}
+    };
+
+    window.addEventListener('touchstart', unlock, { passive: true });
+    window.addEventListener('touchend', unlock, { passive: true });
+    window.addEventListener('click', unlock, { passive: true });
   }
 
   // Initialize and unlock AudioContext on user gesture
@@ -28,18 +63,25 @@ class AudioEngine {
 
   getSupportedMimeType() {
     if (this.supportedMimeType) return this.supportedMimeType;
+
+    // Priority list including iOS-native container (audio/mp4)
     const types = [
       'audio/webm;codecs=opus',
+      'audio/mp4',
+      'audio/aac',
       'audio/webm',
       'audio/ogg;codecs=opus',
     ];
+
     for (const type of types) {
       if (window.MediaRecorder && MediaRecorder.isTypeSupported(type)) {
         this.supportedMimeType = type;
+        console.log('[Audio] Selected MediaRecorder MIME type:', type);
         return type;
       }
     }
-    // Fallback — let browser pick
+
+    // Fallback — let browser choose default
     this.supportedMimeType = '';
     return '';
   }
@@ -53,6 +95,7 @@ class AudioEngine {
       osc.connect(gain);
       gain.connect(this.audioCtx.destination);
       const now = this.audioCtx.currentTime;
+
       if (type === 'start') {
         osc.type = 'sine';
         osc.frequency.setValueAtTime(1000, now);
@@ -86,7 +129,7 @@ class AudioEngine {
       });
       return this.mediaStream;
     } catch (err) {
-      console.error('[Audio] Mic denied:', err);
+      console.error('[Audio] Mic permission denied:', err);
       throw err;
     }
   }
@@ -105,7 +148,7 @@ class AudioEngine {
 
     this.mediaRecorder = new MediaRecorder(stream, options);
 
-    // Send every chunk INCLUDING the first (which has codec headers)
+    // Send chunks continuously
     this.mediaRecorder.ondataavailable = async (e) => {
       if (!this.isRecording) return;
       if (e.data && e.data.size > 0) {
@@ -114,9 +157,9 @@ class AudioEngine {
       }
     };
 
-    // timeslice=100ms — lower latency streaming
+    // timeslice = 100ms for low-latency transmission
     this.mediaRecorder.start(100);
-    console.log('[Audio] MediaRecorder streaming on channel:', channelId);
+    console.log('[Audio] MediaRecorder streaming on channel:', channelId, 'mime:', mimeType);
   }
 
   stopRecording() {
@@ -130,23 +173,25 @@ class AudioEngine {
     console.log('[Audio] Streaming stopped.');
   }
 
-  // ─── RECEIVER: MediaSource Extensions streaming playback ─────────────────
-  // Called ONCE when a new speaker starts (ptt:active), before chunks arrive.
+  // ─── RECEIVER: MediaSource Extensions & iOS Fallback ─────────────────────
   initMediaSourcePlayer(mimeType) {
-    // Tear down previous session
     this.teardownPlayer();
-
-    if (!window.MediaSource) {
-      console.warn('[Audio] MediaSource not supported — falling back to AudioContext decoding');
-      return false;
-    }
+    this.initAudioContext();
 
     const useMime = mimeType || 'audio/webm;codecs=opus';
-    if (!MediaSource.isTypeSupported(useMime)) {
-      console.warn('[Audio] MSE mime not supported:', useMime);
+
+    // Check if browser supports MediaSource Extensions for this MIME type
+    const isMSESupported = window.MediaSource && MediaSource.isTypeSupported(useMime);
+
+    if (!isMSESupported) {
+      console.warn('[Audio] MSE not supported for mime:', useMime, '— using iOS Fallback Accumulator.');
+      this.isFallbackMode = true;
+      this.fallbackChunks = [];
+      this.fallbackMimeType = mimeType || 'audio/mp4';
       return false;
     }
 
+    this.isFallbackMode = false;
     this.audioEl = document.getElementById('walkie-audio-player');
     if (!this.audioEl) {
       this.audioEl = document.createElement('audio');
@@ -169,22 +214,71 @@ class AudioEngine {
         this.sourceBuffer.mode = 'sequence';
         this.sourceBuffer.addEventListener('updateend', () => this._flushPending());
         this.isSourceBufferReady = true;
-        console.log('[Audio] MSE SourceBuffer ready, mime:', useMime);
-        // Flush any chunks that arrived before sourceopen
         this._flushPending();
       } catch (err) {
         console.error('[Audio] MSE addSourceBuffer error:', err);
+        // Fall back to fallback mode if addSourceBuffer throws
+        this.isFallbackMode = true;
+        this.fallbackChunks = [];
+        this.fallbackMimeType = useMime;
       }
     });
 
-    // Start audio element
-    this.audioEl.play().catch(() => {});
+    this.audioEl.play().catch((err) => {
+      console.warn('[Audio] Player play blocked:', err);
+    });
+
     return true;
   }
 
+  receiveChunk(arrayBuffer) {
+    if (this.isFallbackMode) {
+      this.fallbackChunks.push(arrayBuffer);
+    } else {
+      this.pendingChunks.push(arrayBuffer);
+      this._flushPending();
+    }
+  }
+
+  _flushPending() {
+    if (!this.isSourceBufferReady || !this.sourceBuffer || this.sourceBuffer.updating) return;
+    if (this.pendingChunks.length === 0) return;
+
+    const next = this.pendingChunks.shift();
+    try {
+      this.sourceBuffer.appendBuffer(next);
+      if (this.sourceBuffer.buffered.length > 0) {
+        const end = this.sourceBuffer.buffered.end(0);
+        if (end > 30) {
+          try { this.sourceBuffer.remove(0, end - 30); } catch (e) {}
+        }
+      }
+    } catch (err) {
+      console.warn('[Audio] appendBuffer error:', err);
+    }
+  }
+
   teardownPlayer() {
+    // If running in iOS Fallback Accumulator Mode, assemble and play the accumulated chunks
+    if (this.isFallbackMode && this.fallbackChunks.length > 0) {
+      try {
+        const blob = new Blob(this.fallbackChunks, { type: this.fallbackMimeType });
+        const blobUrl = URL.createObjectURL(blob);
+        const player = new Audio(blobUrl);
+        player.playsInline = true;
+        player.play().catch((err) => {
+          console.warn('[Audio Fallback] iOS Audio play error:', err);
+        });
+      } catch (err) {
+        console.error('[Audio Fallback] iOS Blob assembly failed:', err);
+      }
+    }
+
+    this.isFallbackMode = false;
+    this.fallbackChunks = [];
     this.isSourceBufferReady = false;
     this.pendingChunks = [];
+
     if (this.mediaSource && this.mediaSource.readyState === 'open') {
       try { this.mediaSource.endOfStream(); } catch (e) {}
     }
@@ -194,50 +288,6 @@ class AudioEngine {
     }
     this.mediaSource = null;
     this.sourceBuffer = null;
-  }
-
-  // Receive a WebM chunk — buffer it, flush when SourceBuffer is idle
-  receiveChunk(arrayBuffer) {
-    this.pendingChunks.push(arrayBuffer);
-    this._flushPending();
-  }
-
-  _flushPending() {
-    if (!this.isSourceBufferReady) return;
-    if (!this.sourceBuffer) return;
-    if (this.sourceBuffer.updating) return;
-    if (this.pendingChunks.length === 0) return;
-
-    const next = this.pendingChunks.shift();
-    try {
-      this.sourceBuffer.appendBuffer(next);
-      // Keep buffer lean — remove audio older than 30s to prevent quota error
-      if (this.sourceBuffer.buffered.length > 0) {
-        const end = this.sourceBuffer.buffered.end(0);
-        if (end > 30) {
-          try {
-            this.sourceBuffer.remove(0, end - 30);
-          } catch (e) {}
-        }
-      }
-    } catch (err) {
-      console.warn('[Audio] appendBuffer error:', err);
-    }
-  }
-
-  // ─── Legacy AudioContext fallback for browsers without MSE ───────────────
-  async playAudioChunkFallback(arrayBuffer) {
-    try {
-      this.initAudioContext();
-      const buf = arrayBuffer.slice(0);
-      const decoded = await this.audioCtx.decodeAudioData(buf);
-      const src = this.audioCtx.createBufferSource();
-      src.buffer = decoded;
-      src.connect(this.audioCtx.destination);
-      src.start();
-    } catch (e) {
-      console.warn('[Audio] Fallback decode error:', e);
-    }
   }
 }
 
