@@ -86,6 +86,14 @@ class AppController {
     if (pttBtn) {
       window.pttController.setButtonElement(pttBtn);
     }
+
+    // 4. Toggle Mode Checkbox Event
+    const toggleCheckbox = document.getElementById('toggle-mode-checkbox');
+    if (toggleCheckbox) {
+      toggleCheckbox.addEventListener('change', (e) => {
+        window.pttController.setToggleMode(e.target.checked);
+      });
+    }
   }
 
   setupSocketListeners() {

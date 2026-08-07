@@ -175,6 +175,14 @@ class PTTController {
     }
     return this.isToggleMode;
   }
+
+  setToggleMode(enabled) {
+    this.isToggleMode = !!enabled;
+    if (this.isPTTActive) {
+      this.stopPTT();
+    }
+    console.log('[PTT] Toggle Mode changed to:', this.isToggleMode);
+  }
 }
 
 window.pttController = new PTTController();
