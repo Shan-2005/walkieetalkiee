@@ -99,7 +99,7 @@ class PTTController {
 
   // Request floor from server
   async startPTT() {
-    if (this.isPTTActive || !this.currentChannelId) return;
+    if (this.isPTTActive || this.isBlocked || !this.currentChannelId) return;
 
     try {
       await window.audioEngine.requestMicPermission();
@@ -112,6 +112,18 @@ class PTTController {
     window.uiController.updatePTTState('requesting');
     const mimeType = window.audioEngine.getSupportedMimeType();
     window.socketManager.requestPTT(this.currentChannelId, mimeType);
+  }
+
+  // Called when someone else starts speaking in the channel
+  onFloorActive() {
+    this.isBlocked = true;
+  }
+
+  // Called when the active speaker releases the floor
+  onFloorReleased() {
+    this.isBlocked = false;
+    this.isFloorGranted = false;
+    this.isPTTActive = false;
   }
 
   // Called when server grants PTT floor

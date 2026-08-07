@@ -97,6 +97,7 @@ class AppController {
       window.uiController.updateMemberList(data.members, data.channelId);
 
       if (data.floorActive && data.floorHolder) {
+        window.pttController.onFloorActive();
         window.uiController.updatePTTState('receiving', data.floorHolder.userName);
       }
     });
@@ -117,6 +118,7 @@ class AppController {
 
     window.socketManager.on('ptt:active', (data) => {
       if (data.userId !== window.socketManager.currentUserId) {
+        window.pttController.onFloorActive();
         window.uiController.updatePTTState('receiving', data.userName);
         window.audioEngine.playBeep('start');
         // Init MSE streaming player for the incoming speaker's codec
@@ -133,6 +135,7 @@ class AppController {
 
     window.socketManager.on('ptt:released', (data) => {
       if (data.socketId !== window.socketManager.currentUserId) {
+        window.pttController.onFloorReleased();
         window.uiController.updatePTTState('idle');
         window.audioEngine.playBeep('stop');
         // Gracefully end the MSE session

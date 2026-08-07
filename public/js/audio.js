@@ -114,8 +114,8 @@ class AudioEngine {
       }
     };
 
-    // timeslice=250ms — stable chunk size for MSE on receiver
-    this.mediaRecorder.start(250);
+    // timeslice=100ms — lower latency streaming
+    this.mediaRecorder.start(100);
     console.log('[Audio] MediaRecorder streaming on channel:', channelId);
   }
 
