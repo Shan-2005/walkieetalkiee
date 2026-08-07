@@ -145,8 +145,10 @@ class AppController {
 
     window.socketManager.on('audio:chunk', (data) => {
       if (data.senderId !== window.socketManager.currentUserId) {
-        // Route to MSE receiver — continuous streaming, no decode errors
-        window.audioEngine.receiveChunk(data.audioData);
+        // Guard: only play audio if we are actively joined in the chunk's channel
+        if (this.currentChannel && data.channelId === this.currentChannel.id) {
+          window.audioEngine.receiveChunk(data.audioData);
+        }
       }
     });
   }

@@ -251,11 +251,7 @@ io.on('connection', (socket) => {
         mimeType: mimeType || ''
       };
 
-      if (targetChannel === 'all') {
-        io.emit('ptt:active', activePayload);
-      } else {
-        io.to(targetChannel).emit('ptt:active', activePayload);
-      }
+      io.to(targetChannel).emit('ptt:active', activePayload);
     } else {
       const ownerUser = users.get(currentOwner);
       const ownerName = ownerUser ? ownerUser.name : 'Someone';
@@ -281,11 +277,7 @@ io.on('connection', (socket) => {
         userName: user ? user.name : 'User'
       };
 
-      if (targetChannel === 'all') {
-        io.emit('ptt:released', releasePayload);
-      } else {
-        io.to(targetChannel).emit('ptt:released', releasePayload);
-      }
+      io.to(targetChannel).emit('ptt:released', releasePayload);
     }
   });
 
@@ -305,11 +297,7 @@ io.on('connection', (socket) => {
       audioData
     };
 
-    if (targetChannel === 'all') {
-      socket.broadcast.emit('audio:chunk', chunkPayload);
-    } else {
-      socket.to(targetChannel).emit('audio:chunk', chunkPayload);
-    }
+    socket.to(targetChannel).emit('audio:chunk', chunkPayload);
   });
 
   socket.on('disconnect', () => {
