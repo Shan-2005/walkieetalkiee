@@ -54,23 +54,11 @@ class PTTController {
     this._startVolProbe();
   }
 
-  // ─── PTT start / stop ────────────────────────────────────────────────────
   async startPTT() {
     if (this._state !== 'idle') return;
     if (!this.currentChannelId) return;
 
     this._setState('requesting');
-
-    try {
-      await window.audioEngine.requestMicPermission();
-    } catch (err) {
-      window.uiController.showToast('Microphone access required.', 'error');
-      this._setState('idle');
-      return;
-    }
-
-    if (this._state !== 'requesting') return;
-
     window.socketManager.requestPTT(this.currentChannelId, '');
   }
 
@@ -81,29 +69,20 @@ class PTTController {
     this._setState('idle');
 
     if (wasTransmitting) {
-      if (window.webrtcManager) window.webrtcManager.closeAll();
+      if (window.webrtcManager) window.webrtcManager.setMute(true);
       window.audioEngine.playBeep('stop');
       window.socketManager.releasePTT(this.currentChannelId);
     }
   }
 
   // ─── Server event callbacks ──────────────────────────────────────────────
-  async onFloorGranted() {
+  onFloorGranted() {
     if (this._state !== 'requesting') return;
     this._setState('transmitting');
     window.audioEngine.playBeep('start');
 
-    try {
-      const micStream = await window.audioEngine.requestMicPermission();
-      window.socketManager.getChannelListeners(this.currentChannelId, (res) => {
-        const listenerIds = res ? res.listeners : [];
-        if (window.webrtcManager) {
-          window.webrtcManager.startBroadcast(this.currentChannelId, micStream, listenerIds);
-        }
-      });
-    } catch (err) {
-      console.error('[PTT] WebRTC broadcast setup failed:', err);
-      this.stopPTT();
+    if (window.webrtcManager) {
+      window.webrtcManager.setMute(false);
     }
   }
 

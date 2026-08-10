@@ -114,6 +114,9 @@ class AppController {
 
     window.socketManager.on('channel:joined', (data) => {
       window.uiController.updateMemberList(data.members, data.channelId);
+      if (window.webrtcManager) {
+        window.webrtcManager.syncPeers(data.members);
+      }
 
       if (data.floorActive && data.floorHolder) {
         window.pttController.onFloorActive();
@@ -124,6 +127,9 @@ class AppController {
     window.socketManager.on('channel:members', (data) => {
       if (this.currentChannel && data.channelId === this.currentChannel.id) {
         window.uiController.updateMemberList(data.members, data.channelId);
+        if (window.webrtcManager) {
+          window.webrtcManager.syncPeers(data.members);
+        }
       }
     });
 
@@ -159,7 +165,6 @@ class AppController {
           window.pttController.onFloorReleased();
           window.uiController.updatePTTState('idle');
           window.audioEngine.playBeep('stop');
-          if (window.webrtcManager) window.webrtcManager.closePeer(data.socketId, 'inbound');
         }
       }
     });
