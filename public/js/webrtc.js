@@ -5,6 +5,13 @@ class WebRTCManager {
     this.dynamicPeers = new Map();      // emergency & receiver temporary connections
     this.audioElements = new Map();     // peerSocketId -> HTMLAudioElement
     this.localStream = null;
+    this.rawMicStream = null;
+
+    // Web Audio Nodes for foolproof hardware muting
+    this.audioCtx = null;
+    this.micSourceNode = null;
+    this.micGainNode = null;
+    this.micDestinationNode = null;
 
     // Default public STUN servers
     this.iceServers = [
@@ -21,33 +28,49 @@ class WebRTCManager {
     }
   }
 
-  // Ensure we have a local mic stream ready (tracks muted by default)
+  // Ensure we have a local mic stream ready (tracks routed via GainNode set to 0)
   async ensureLocalStream() {
     if (this.localStream && this.localStream.active) return this.localStream;
     try {
-      const stream = await window.audioEngine.requestMicPermission();
-      // Mute tracks by default
-      stream.getAudioTracks().forEach(track => {
-        track.enabled = false;
-      });
-      this.localStream = stream;
-      console.log('[WebRTC] Local stream initialized and muted by default.');
-      return stream;
+      const rawStream = await window.audioEngine.requestMicPermission();
+      
+      const audioCtx = window.audioEngine.initAudioContext();
+      this.audioCtx = audioCtx;
+
+      // Clean up previous nodes if any
+      if (this.micSourceNode) this.micSourceNode.disconnect();
+      if (this.micGainNode) this.micGainNode.disconnect();
+
+      // Route microphone through Web Audio GainNode for absolute mute security
+      this.micSourceNode = audioCtx.createMediaStreamSource(rawStream);
+      this.micGainNode = audioCtx.createGain();
+      this.micGainNode.gain.value = 0.0; // Muted by default (absolute silence)
+
+      this.micDestinationNode = audioCtx.createMediaStreamDestination();
+      
+      this.micSourceNode.connect(this.micGainNode);
+      this.micGainNode.connect(this.micDestinationNode);
+
+      this.localStream = this.micDestinationNode.stream;
+      this.rawMicStream = rawStream;
+
+      console.log('[WebRTC] Web Audio mic routing initialized. Muted by default.');
+      return this.localStream;
     } catch (err) {
       console.error('[WebRTC] Failed to get local stream:', err);
       throw err;
     }
   }
 
-  // Enable/disable transmission of microphone audio
+  // Enable/disable transmission of microphone audio using Web Audio Gain
   setMute(isMuted) {
-    if (this.localStream) {
-      this.localStream.getAudioTracks().forEach(track => {
-        track.enabled = !isMuted;
-        console.log(`[WebRTC] Local track ${track.id} enabled state: ${track.enabled}`);
-      });
+    if (this.micGainNode && this.audioCtx) {
+      const targetVal = isMuted ? 0.0 : 1.0;
+      // Smooth 10ms exponential ramp to prevent audio pops and clicks
+      this.micGainNode.gain.setTargetAtTime(targetVal, this.audioCtx.currentTime, 0.01);
+      console.log(`[WebRTC] Web Audio mic gain set to: ${targetVal}`);
     } else {
-      console.warn('[WebRTC] Cannot set mute state: No local stream initialized.');
+      console.warn('[WebRTC] Cannot set mute state: Web Audio nodes not initialized.');
     }
   }
 
@@ -361,11 +384,23 @@ class WebRTCManager {
     });
     this.audioElements.clear();
 
-    if (this.localStream) {
-      this.localStream.getTracks().forEach(track => track.stop());
-      this.localStream = null;
+    // Clean up Web Audio routing
+    if (this.micSourceNode) {
+      this.micSourceNode.disconnect();
+      this.micSourceNode = null;
     }
-    console.log('[WebRTC] All connections closed.');
+    if (this.micGainNode) {
+      this.micGainNode.disconnect();
+      this.micGainNode = null;
+    }
+    this.micDestinationNode = null;
+
+    if (this.rawMicStream) {
+      this.rawMicStream.getTracks().forEach(track => track.stop());
+      this.rawMicStream = null;
+    }
+    this.localStream = null;
+    console.log('[WebRTC] All connections and Web Audio nodes cleared.');
   }
 }
 
