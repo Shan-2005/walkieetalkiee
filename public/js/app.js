@@ -191,6 +191,9 @@ class AppController {
     this.currentChannel = channel;
     window.pttController.setChannel(channelId);
 
+    // Re-trigger/ensure volume probe is active on channel join user gesture
+    window.pttController.activateVolumeProbe();
+
     window.audioEngine.requestMicPermission().catch(() => {
       window.uiController.showToast('Microphone access is needed for Push-to-Talk.', 'warning');
     });
