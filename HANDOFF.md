@@ -68,32 +68,45 @@ A **push-to-talk (PTT) walkie-talkie** web application for the Robofest 2.0 orga
 ### Stack
 ```
 Frontend:  Vanilla HTML + CSS + JS (single-page app, NO framework)
-Backend:   Node.js + Express + Socket.IO (signaling server)
-Audio:     Web Audio API + MediaRecorder for capture, AudioContext for playback
-Transport: Socket.IO binary events (audio chunks streamed as ArrayBuffer)
+Backend:   Node.js + Express + Socket.IO (signaling & floor control server)
+Audio:     Web Audio API (beeps, unlock) + WebRTC RTCPeerConnection (Opus stream)
+Transport: Direct WebRTC P2P (Signaling via Socket.IO offer/answer/ICE)
 ```
 
-### Why NOT WebRTC peer-to-peer?
-- WebRTC P2P requires mesh connections (N×N), which is impractical for 10+ users per channel.
-- Using a **server-relay model** (SFU-lite): audio chunks are sent to the server via Socket.IO, and the server broadcasts to all channel members. This is simpler, more reliable on campus Wi-Fi, and easier to manage floor control.
+### Architecture Strategy: Star-Topology WebRTC
+- **Signaling-Only Server**: The Node.js server manages channel state, floor ownership, and relays SDP offers/answers and ICE candidates. It never touches audio payload data.
+- **Star-Topology P2P**: When a speaker is granted the floor, they establish direct `RTCPeerConnection`s to all connected listeners in that channel.
+- **Low Latency & High Quality**: Uses native Opus encoding via WebRTC with hardware acceleration, achieving 50-100ms ultra-low end-to-end latency.
 
 ### Architecture Diagram
 ```
-┌──────────────┐     Socket.IO      ┌─────────────────┐     Socket.IO      ┌──────────────┐
-│  Phone A     │ ──── audio chunks ──→│   Node Server   │──── audio chunks ──→│  Phone B     │
-│  (Speaker)   │                     │   (Relay + PTT  │                     │  (Listener)  │
-│              │ ←── "floor taken" ──│    Floor Ctrl)  │←── PTT request ────│              │
-└──────────────┘                     └─────────────────┘                     └──────────────┘
+┌──────────────┐                                        ┌──────────────┐
+│  Phone A     │   WebRTC PeerConnection (Opus Audio)   │  Phone B     │
+│  (Speaker)   │ ═══════════════ Direct P2P ═══════════>│  (Listener)  │
+│              │                                        │              │
+│              │   WebRTC PeerConnection (Opus Audio)   ├──────────────┤
+│              │ ═══════════════ Direct P2P ═══════════>│  Phone C     │
+└──────┬───────┘                                        └──────────────┘
+       │
+       │ Socket.IO Signaling Only
+       │ (ptt:request, signal:offer, signal:answer, signal:ice-candidate)
+  ┌────▼───────────────┐
+  │   Node Server     │
+  │ (Signaling Server │
+  │ + Floor Control)  │
+  └───────────────────┘
 ```
 
 ### Data Flow
-1. **User presses PTT** → client emits `ptt:request { channel, userId }`
-2. **Server checks floor** → if free, emits `ptt:granted { userId }` to requester, `ptt:active { userId, userName }` to all in channel
-3. **User speaks** → client captures audio via MediaRecorder in 100ms chunks → emits `audio:chunk { channel, data: ArrayBuffer }`
-4. **Server relays** → broadcasts `audio:chunk` to all in that channel (except sender)
-5. **Receivers play** → AudioContext decodes and plays chunks in real-time
-6. **User releases PTT** → client emits `ptt:release { channel, userId }`
-7. **Server frees floor** → emits `ptt:released` to all in channel
+1. **User presses PTT** → client emits `ptt:request { channel, userId }` via Socket.IO
+2. **Server checks floor** → if free, grants floor and emits `ptt:granted` to speaker and `ptt:active` to listeners
+3. **Speaker fetches listeners** → requests listener IDs from server via `channel:get-listeners`
+4. **WebRTC signaling exchange**:
+   - Speaker creates `RTCPeerConnection` for each listener, adds mic track, and emits `signal:offer`
+   - Listeners receive `signal:offer`, create answer, and respond with `signal:answer`
+   - ICE candidates exchanged via `signal:ice-candidate`
+5. **Direct Audio Streaming** → Audio streams directly to listeners over SRTP/Opus
+6. **User releases PTT** → closes peer connections, client emits `ptt:release`, server frees floor
 
 ---
 

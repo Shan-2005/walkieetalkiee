@@ -1,4 +1,4 @@
-// Socket.IO Connection & Event Handlers
+// Socket.IO Connection & WebRTC Signaling Manager
 class SocketManager {
   constructor() {
     this.socket = null;
@@ -39,6 +39,7 @@ class SocketManager {
       this.isConnected = false;
       console.warn('[Socket] Disconnected:', reason);
       if (window.pttController) window.pttController.stopPTT();
+      if (window.webrtcManager) window.webrtcManager.closeAll();
       this.emitLocal('disconnect', { reason });
     });
 
@@ -71,8 +72,17 @@ class SocketManager {
       this.emitLocal('ptt:released', data);
     });
 
-    this.socket.on('audio:chunk', (data) => {
-      this.emitLocal('audio:chunk', data);
+    // WebRTC Signaling Listeners
+    this.socket.on('signal:offer', (data) => {
+      this.emitLocal('signal:offer', data);
+    });
+
+    this.socket.on('signal:answer', (data) => {
+      this.emitLocal('signal:answer', data);
+    });
+
+    this.socket.on('signal:ice-candidate', (data) => {
+      this.emitLocal('signal:ice-candidate', data);
     });
   }
 
@@ -107,13 +117,15 @@ class SocketManager {
     }
   }
 
-  sendAudioChunk(channelId, audioArrayBuffer, mimeType) {
+  getChannelListeners(channelId, callback) {
+    if (this.socket) {
+      this.socket.emit('channel:get-listeners', { channelId }, callback);
+    }
+  }
+
+  sendSignal(eventName, payload) {
     if (this.socket && this.isConnected) {
-      this.socket.emit('audio:chunk', {
-        channelId,
-        mimeType: mimeType || '',
-        audioData: audioArrayBuffer
-      });
+      this.socket.emit(eventName, payload);
     }
   }
 

@@ -135,7 +135,6 @@ class AppController {
           const speakerText = (data.isEmergency || data.channelId === 'all') ? `[!] EMERGENCY: ${data.userName}` : data.userName;
           window.uiController.updatePTTState('receiving', speakerText);
           window.audioEngine.playBeep('start');
-          window.audioEngine.initMediaSourcePlayer(data.mimeType || '');
 
           if ('Notification' in window && Notification.permission === 'granted' && document.hidden) {
             new Notification('Robofest 2.0 Walkie-Talkie', {
@@ -153,16 +152,27 @@ class AppController {
           window.pttController.onFloorReleased();
           window.uiController.updatePTTState('idle');
           window.audioEngine.playBeep('stop');
-          setTimeout(() => window.audioEngine.teardownPlayer(), 600);
+          if (window.webrtcManager) window.webrtcManager.closePeer(data.socketId, 'inbound');
         }
       }
     });
 
-    window.socketManager.on('audio:chunk', (data) => {
-      if (data.senderId !== window.socketManager.currentUserId) {
-        if (data.channelId === 'all' || (this.currentChannel && data.channelId === this.currentChannel.id)) {
-          window.audioEngine.receiveChunk(data.audioData);
-        }
+    // WebRTC Signaling Handlers
+    window.socketManager.on('signal:offer', (data) => {
+      if (window.webrtcManager) {
+        window.webrtcManager.handleOffer(data);
+      }
+    });
+
+    window.socketManager.on('signal:answer', (data) => {
+      if (window.webrtcManager) {
+        window.webrtcManager.handleAnswer(data);
+      }
+    });
+
+    window.socketManager.on('signal:ice-candidate', (data) => {
+      if (window.webrtcManager) {
+        window.webrtcManager.handleIceCandidate(data);
       }
     });
   }

@@ -1,4 +1,4 @@
-// Robofest 2.0 Receiver Command Center — MSE Streaming Audio Engine
+// Robofest 2.0 Receiver Command Center — WebRTC Audio Engine
 class ReceiverEngine {
   constructor() {
     this.socket = null;
@@ -10,12 +10,6 @@ class ReceiverEngine {
     this.soloChannel = null;
     this.isMutedAll = false;
     this.isAudioUnlocked = false;
-    // MSE player fields
-    this.audioEl = null;
-    this.mediaSource = null;
-    this.sourceBuffer = null;
-    this.pendingChunks = [];
-    this.isSourceBufferReady = false;
   }
 
   init() {
@@ -76,90 +70,36 @@ class ReceiverEngine {
     this.socket.on('stats:update', (data) => this.updateStatsUI(data));
 
     this.socket.on('ptt:active', (data) => {
-      const { channelId, userName, role, mimeType } = data;
+      const { channelId, userName, role } = data;
       this.logTerminal(`[PTT START] <span class="active-talk">${channelId.toUpperCase()}</span> :: ${userName} (${role})`, 'active-talk');
       this.setChannelSpeakerUI(channelId, userName, true);
-      this.initMediaSourcePlayer(mimeType || '');
     });
 
     this.socket.on('ptt:released', (data) => {
-      const { channelId, userName } = data;
+      const { channelId, userName, socketId } = data;
       this.logTerminal(`[PTT STOP] ${channelId.toUpperCase()} :: ${userName || 'User'} released floor`, 'release-talk');
       this.setChannelSpeakerUI(channelId, null, false);
-      setTimeout(() => this.teardownPlayer(), 600);
+      if (window.webrtcManager) window.webrtcManager.closePeer(socketId, 'inbound');
     });
 
-    this.socket.on('audio:chunk', (data) => {
-      if (this.isMutedAll) return;
-      if (this.channelMuted.get(data.channelId)) return;
-      if (this.soloChannel && this.soloChannel !== data.channelId) return;
-      this.receiveChunk(data.audioData);
-    });
-  }
-
-  // ─── MediaSource Extensions streaming player ─────────────────────────────
-  initMediaSourcePlayer(mimeType) {
-    this.teardownPlayer();
-    if (!window.MediaSource) return;
-    const useMime = mimeType || 'audio/webm;codecs=opus';
-    if (!MediaSource.isTypeSupported(useMime)) return;
-
-    let audioEl = document.getElementById('receiver-audio-player');
-    if (!audioEl) {
-      audioEl = document.createElement('audio');
-      audioEl.id = 'receiver-audio-player';
-      audioEl.autoplay = true;
-      audioEl.playsInline = true;
-      audioEl.style.display = 'none';
-      document.body.appendChild(audioEl);
-    }
-    this.audioEl = audioEl;
-    this.mediaSource = new MediaSource();
-    this.pendingChunks = [];
-    this.isSourceBufferReady = false;
-    audioEl.src = URL.createObjectURL(this.mediaSource);
-
-    this.mediaSource.addEventListener('sourceopen', () => {
-      try {
-        this.sourceBuffer = this.mediaSource.addSourceBuffer(useMime);
-        this.sourceBuffer.mode = 'sequence';
-        this.sourceBuffer.addEventListener('updateend', () => this._flushPending());
-        this.isSourceBufferReady = true;
-        this._flushPending();
-      } catch (err) {
-        console.error('[Receiver MSE] addSourceBuffer error:', err);
+    // WebRTC Signaling Events
+    this.socket.on('signal:offer', (data) => {
+      if (window.webrtcManager) {
+        window.webrtcManager.handleOffer(data);
       }
     });
-    audioEl.play().catch(() => {});
-  }
 
-  teardownPlayer() {
-    this.isSourceBufferReady = false;
-    this.pendingChunks = [];
-    if (this.mediaSource && this.mediaSource.readyState === 'open') {
-      try { this.mediaSource.endOfStream(); } catch (e) {}
-    }
-    if (this.audioEl) { this.audioEl.src = ''; this.audioEl.removeAttribute('src'); }
-    this.mediaSource = null;
-    this.sourceBuffer = null;
-  }
-
-  receiveChunk(arrayBuffer) {
-    this.pendingChunks.push(arrayBuffer);
-    this._flushPending();
-  }
-
-  _flushPending() {
-    if (!this.isSourceBufferReady || !this.sourceBuffer || this.sourceBuffer.updating) return;
-    if (this.pendingChunks.length === 0) return;
-    const next = this.pendingChunks.shift();
-    try {
-      this.sourceBuffer.appendBuffer(next);
-      if (this.sourceBuffer.buffered.length > 0) {
-        const end = this.sourceBuffer.buffered.end(0);
-        if (end > 30) { try { this.sourceBuffer.remove(0, end - 30); } catch (e) {} }
+    this.socket.on('signal:answer', (data) => {
+      if (window.webrtcManager) {
+        window.webrtcManager.handleAnswer(data);
       }
-    } catch (err) { console.warn('[Receiver MSE] appendBuffer error:', err); }
+    });
+
+    this.socket.on('signal:ice-candidate', (data) => {
+      if (window.webrtcManager) {
+        window.webrtcManager.handleIceCandidate(data);
+      }
+    });
   }
 
   // ─── Spectrum Visualizer ─────────────────────────────────────────────────

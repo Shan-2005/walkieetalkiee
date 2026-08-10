@@ -81,20 +81,30 @@ class PTTController {
     this._setState('idle');
 
     if (wasTransmitting) {
-      window.audioEngine.stopRecording();
+      if (window.webrtcManager) window.webrtcManager.closeAll();
+      window.audioEngine.playBeep('stop');
       window.socketManager.releasePTT(this.currentChannelId);
     }
   }
 
   // ─── Server event callbacks ──────────────────────────────────────────────
-  onFloorGranted() {
+  async onFloorGranted() {
     if (this._state !== 'requesting') return;
     this._setState('transmitting');
+    window.audioEngine.playBeep('start');
 
-    window.audioEngine.startRecording(this.currentChannelId).catch((err) => {
-      console.error('[PTT] Recording failed:', err);
+    try {
+      const micStream = await window.audioEngine.requestMicPermission();
+      window.socketManager.getChannelListeners(this.currentChannelId, (res) => {
+        const listenerIds = res ? res.listeners : [];
+        if (window.webrtcManager) {
+          window.webrtcManager.startBroadcast(this.currentChannelId, micStream, listenerIds);
+        }
+      });
+    } catch (err) {
+      console.error('[PTT] WebRTC broadcast setup failed:', err);
       this.stopPTT();
-    });
+    }
   }
 
   onFloorDenied(currentSpeaker) {

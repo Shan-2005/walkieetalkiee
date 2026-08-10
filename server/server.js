@@ -1,29 +1,15 @@
 const express = require('express');
 const http = require('http');
-const https = require('https');
 const { Server } = require('socket.io');
 const path = require('path');
 const cors = require('cors');
 const os = require('os');
-const selfsigned = require('selfsigned');
 require('dotenv').config();
 
 const app = express();
-const useHttps = process.env.USE_HTTPS === 'true';
-let server;
+const server = http.createServer(app);
+console.log('📡 Walkie-Talkie Signaling Server Initialized.');
 
-if (useHttps) {
-  const attrs = [{ name: 'commonName', value: 'robofest-walkie-talkie' }];
-  const pems = selfsigned.generate(attrs, { days: 365 });
-  server = https.createServer({
-    key: pems.private,
-    cert: pems.cert
-  }, app);
-  console.log('🔒 HTTPS Mode: Auto-generated self-signed SSL certificate.');
-} else {
-  server = http.createServer(app);
-  console.log('🔓 HTTP Mode: Running standard unsecured connection.');
-}
 
 const io = new Server(server, {
   cors: {
@@ -112,13 +98,7 @@ function grantFloor(channelId, socketId, mimeType) {
     releaseFloor(channelId, socketId, 'max_duration');
   }, 15000);
 
-  // Audio chunk idle watchdog: 3 seconds without audio chunks auto-releases floor
-  const idleTimer = setTimeout(() => {
-    console.log(`[Floor Watchdog] Channel ${channelId} idle (no audio chunks for 3s).`);
-    releaseFloor(channelId, socketId, 'audio_idle');
-  }, 3000);
-
-  floorTimers.set(channelId, { maxTimer, idleTimer });
+  floorTimers.set(channelId, { maxTimer });
 
   const activePayload = {
     channelId,
@@ -137,16 +117,6 @@ function grantFloor(channelId, socketId, mimeType) {
   console.log(`[Floor Granted] ${user ? user.name : socketId} on ${channelId} (Emergency: ${channelId === 'all'})`);
 }
 
-function touchFloorAudioActivity(channelId, socketId) {
-  if (floorOwner.get(channelId) === socketId && floorTimers.has(channelId)) {
-    const timers = floorTimers.get(channelId);
-    clearTimeout(timers.idleTimer);
-    timers.idleTimer = setTimeout(() => {
-      console.log(`[Floor Watchdog] Channel ${channelId} idle (no audio chunks for 3s).`);
-      releaseFloor(channelId, socketId, 'audio_idle');
-    }, 3000);
-  }
-}
 
 function getChannelMembers(channelId) {
   const memberSockets = channels.get(channelId) || new Set();
@@ -383,29 +353,48 @@ io.on('connection', (socket) => {
     }
   });
 
-  socket.on('audio:chunk', ({ channelId, audioData, mimeType }) => {
-    const user = users.get(socket.id);
-    if (!user || !audioData) return;
-
-    const targetChannel = channelId || user.channel;
-    if (!targetChannel) return;
-
-    touchFloorAudioActivity(targetChannel, socket.id);
-
-    const chunkPayload = {
-      channelId: targetChannel,
-      senderId: socket.id,
-      senderName: user.name,
-      senderRole: user.role,
-      mimeType: mimeType || '',
-      audioData
-    };
-
-    if (targetChannel === 'all') {
-      socket.volatile.broadcast.emit('audio:chunk', chunkPayload);
+  socket.on('channel:get-listeners', ({ channelId }, callback) => {
+    let listenerIds = [];
+    if (channelId === 'all') {
+      // Master Broadcast: target everyone except sender
+      for (const [sId] of users.entries()) {
+        if (sId !== socket.id) listenerIds.push(sId);
+      }
     } else {
-      socket.to(targetChannel).volatile.emit('audio:chunk', chunkPayload);
+      const channelSockets = channels.get(channelId);
+      if (channelSockets) {
+        for (const sId of channelSockets) {
+          if (sId !== socket.id) listenerIds.push(sId);
+        }
+      }
     }
+    if (typeof callback === 'function') {
+      callback({ listeners: listenerIds });
+    }
+  });
+
+  socket.on('signal:offer', ({ targetId, offer }) => {
+    if (!targetId || !offer) return;
+    io.to(targetId).emit('signal:offer', {
+      senderId: socket.id,
+      offer
+    });
+  });
+
+  socket.on('signal:answer', ({ targetId, answer }) => {
+    if (!targetId || !answer) return;
+    io.to(targetId).emit('signal:answer', {
+      senderId: socket.id,
+      answer
+    });
+  });
+
+  socket.on('signal:ice-candidate', ({ targetId, candidate }) => {
+    if (!targetId || !candidate) return;
+    io.to(targetId).emit('signal:ice-candidate', {
+      senderId: socket.id,
+      candidate
+    });
   });
 
   socket.on('disconnect', () => {
@@ -450,15 +439,11 @@ const PORT = process.env.PORT || 3000;
 const localIP = getLocalIP();
 
 server.listen(PORT, '0.0.0.0', () => {
-  const protocol = useHttps ? 'https' : 'http';
   console.log(`====================================================`);
-  console.log(`🎙️ Robofest 2.0 Walkie-Talkie Server Running!`);
-  console.log(`   📱 Mobile PWA Walkie App : ${protocol}://${localIP}:${PORT}`);
-  console.log(`   🎧 Mobile Receiver Station: ${protocol}://${localIP}:${PORT}/receiver.html`);
-  console.log(`   💻 Local Desktop Access  : ${protocol}://localhost:${PORT}/receiver.html`);
-  if (useHttps) {
-    console.log(`   ⚠️ Note: Since this uses a self-signed SSL cert, your`);
-    console.log(`     phone will show a warning. Click "Advanced" -> "Proceed"`);
-  }
+  console.log(`🎙️ Robofest 2.0 WebRTC Walkie-Talkie Server Running!`);
+  console.log(`   📱 Mobile PWA Walkie App : http://${localIP}:${PORT}`);
+  console.log(`   🎧 Mobile Receiver Station: http://${localIP}:${PORT}/receiver.html`);
+  console.log(`   💻 Local Desktop Access  : http://localhost:${PORT}/receiver.html`);
   console.log(`====================================================`);
 });
+
