@@ -70,8 +70,7 @@ class PTTController {
 
     if (this._state !== 'requesting') return;
 
-    const mimeType = window.audioEngine.getSupportedMimeType();
-    window.socketManager.requestPTT(this.currentChannelId, mimeType);
+    window.socketManager.requestPTT(this.currentChannelId, '');
   }
 
   stopPTT() {
