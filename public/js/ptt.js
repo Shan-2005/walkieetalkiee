@@ -132,6 +132,7 @@ class PTTController {
     console.log(`[PTT] ${this._state} → ${newState}`);
     this._state = newState;
     window.uiController.updatePTTState(newState);
+    this._updateMediaMetadata();
   }
 
   _handleTogglePress() {
@@ -203,14 +204,8 @@ class PTTController {
       audio.volume = 0.01; // near-silent but NOT muted so session stays active
       audio.style.display = 'none';
 
-      // Use a real (but inaudible) tone instead of empty WAV —
-      // empty WAV can cause some browsers to not register the audio session.
-      // This is a 1-second 20Hz tone (below human hearing).
-      audio.src = 'data:audio/wav;base64,UklGRmQBAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YUABAAB' +
-        'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA' +
-        'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA' +
-        'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA' +
-        'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==';
+      // 10-second silent MP3 data URI (convinces browser of real continuous playback)
+      audio.src = 'data:audio/mp3;base64,SUQzBAAAAAAAI1RTU0UAAAAPAAADTGFtZTMuOTguNCAoYmV0YSkAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD/+0MUAAAP8AAAAAZgAAB/4AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD/+0MUAAAP8AAAAAZgAAB/4AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD/+0MUAAAP8AAAAAZgAAB/4AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD/+0MUAAAP8AAAAAZgAAB/4AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD/';"
 
       document.body.appendChild(audio);
       this._volProbeAudio = audio;
@@ -280,14 +275,31 @@ class PTTController {
     if ('mediaSession' in navigator && window.channelManager && this.currentChannelId) {
       const channel = window.channelManager.getChannelById(this.currentChannelId);
       if (channel) {
+        let titlePrefix = 'IDLE';
+        if (this._state === 'transmitting') {
+          titlePrefix = '🔴 TRANSMITTING';
+        } else if (this._state === 'receiving') {
+          // Find if there is an active speaker name
+          const speakerNameEl = document.getElementById('speaker-name');
+          const speakerName = (speakerNameEl && speakerNameEl.textContent) ? speakerNameEl.textContent : 'Someone';
+          titlePrefix = `🟢 TALKING: ${speakerName}`;
+        } else if (this._state === 'requesting') {
+          titlePrefix = 'Connecting mic...';
+        } else if (this._state === 'blocked') {
+          titlePrefix = 'Floor Busy';
+        }
+
         navigator.mediaSession.metadata = new MediaMetadata({
-          title: `Channel: ${channel.name}`,
+          title: `${titlePrefix} | ${channel.name}`,
           artist: 'Robofest 2.0 Walkie-Talkie',
           artwork: [
             { src: '/assets/walkie-icon.png', sizes: '192x192', type: 'image/png' },
             { src: '/assets/walkie-icon.png', sizes: '512x512', type: 'image/png' }
           ]
         });
+
+        // Enforce the 'playing' state so the lockscreen controls stay visible
+        navigator.mediaSession.playbackState = 'playing';
       }
     }
   }
