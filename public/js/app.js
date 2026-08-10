@@ -165,6 +165,9 @@ class AppController {
           window.pttController.onFloorReleased();
           window.uiController.updatePTTState('idle');
           window.audioEngine.playBeep('stop');
+          if ((data.isEmergency || data.channelId === 'all') && window.webrtcManager) {
+            window.webrtcManager.closeEmergencyPeer(data.socketId);
+          }
         }
       }
     });

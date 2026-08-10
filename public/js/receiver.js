@@ -79,7 +79,7 @@ class ReceiverEngine {
       const { channelId, userName, socketId } = data;
       this.logTerminal(`[PTT STOP] ${channelId.toUpperCase()} :: ${userName || 'User'} released floor`, 'release-talk');
       this.setChannelSpeakerUI(channelId, null, false);
-      if (window.webrtcManager) window.webrtcManager.closePeer(socketId, 'inbound');
+      if (window.webrtcManager) window.webrtcManager.closeDynamicPeer(socketId);
     });
 
     // WebRTC Signaling Events

@@ -69,7 +69,7 @@ class PTTController {
     this._setState('idle');
 
     if (wasTransmitting) {
-      if (window.webrtcManager) window.webrtcManager.setMute(true);
+      if (window.webrtcManager) window.webrtcManager.stopBroadcast();
       window.audioEngine.playBeep('stop');
       window.socketManager.releasePTT(this.currentChannelId);
     }
@@ -81,9 +81,12 @@ class PTTController {
     this._setState('transmitting');
     window.audioEngine.playBeep('start');
 
-    if (window.webrtcManager) {
-      window.webrtcManager.setMute(false);
-    }
+    window.socketManager.getChannelListeners(this.currentChannelId, (res) => {
+      const listenerIds = res ? res.listeners : [];
+      if (window.webrtcManager) {
+        window.webrtcManager.startBroadcast(listenerIds);
+      }
+    });
   }
 
   onFloorDenied(currentSpeaker) {

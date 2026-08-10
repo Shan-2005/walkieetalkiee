@@ -1,8 +1,9 @@
-// WebRTC Manager — Star Topology P2P Pre-Established Mesh Audio Engine
+// WebRTC Manager — Star Topology P2P Hybrid Warm/Dynamic Audio Engine
 class WebRTCManager {
   constructor() {
-    this.peers = new Map();         // peerSocketId -> RTCPeerConnection
-    this.audioElements = new Map(); // peerSocketId -> HTMLAudioElement
+    this.peers = new Map();             // channel members (warm mesh)
+    this.dynamicPeers = new Map();      // emergency & receiver temporary connections
+    this.audioElements = new Map();     // peerSocketId -> HTMLAudioElement
     this.localStream = null;
 
     // Default public STUN servers
@@ -136,18 +137,30 @@ class WebRTCManager {
   async handleOffer({ senderId, offer }) {
     console.log(`[WebRTC] Received offer from ${senderId}`);
     
-    // Clean up existing if any
-    if (this.peers.has(senderId)) {
-      this.closePeer(senderId);
-    }
+    // Determine if this is a temporary dynamic peer or a regular channel peer.
+    // If they are not in our warm channel mesh, it's a dynamic broadcast.
+    const isDynamic = !this.peers.has(senderId);
 
     try {
       await this.ensureLocalStream();
 
       const pc = new RTCPeerConnection({ iceServers: this.iceServers });
-      this.peers.set(senderId, pc);
+      if (isDynamic) {
+        // Clean up existing dynamic peer if any
+        if (this.dynamicPeers.has(senderId)) {
+          this.closeDynamicPeer(senderId);
+        }
+        this.dynamicPeers.set(senderId, pc);
+      } else {
+        // Clean up existing warm peer if any
+        if (this.peers.has(senderId)) {
+          this.closePeer(senderId);
+        }
+        this.peers.set(senderId, pc);
+      }
 
-      if (this.localStream) {
+      // Receivers do not need to send audio back for dynamic/one-way broadcasts
+      if (!isDynamic && this.localStream) {
         this.localStream.getTracks().forEach(track => {
           pc.addTrack(track, this.localStream);
         });
@@ -171,7 +184,11 @@ class WebRTCManager {
       pc.oniceconnectionstatechange = () => {
         console.log(`[WebRTC] Connection with ${senderId} state: ${pc.iceConnectionState}`);
         if (pc.iceConnectionState === 'failed' || pc.iceConnectionState === 'disconnected') {
-          this.closePeer(senderId);
+          if (isDynamic) {
+            this.closeDynamicPeer(senderId);
+          } else {
+            this.closePeer(senderId);
+          }
         }
       };
 
@@ -190,7 +207,7 @@ class WebRTCManager {
   }
 
   async handleAnswer({ senderId, answer }) {
-    const pc = this.peers.get(senderId);
+    const pc = this.peers.get(senderId) || this.dynamicPeers.get(senderId);
     if (!pc) return;
     try {
       await pc.setRemoteDescription(new RTCSessionDescription(answer));
@@ -201,13 +218,89 @@ class WebRTCManager {
   }
 
   async handleIceCandidate({ senderId, candidate }) {
-    const pc = this.peers.get(senderId);
+    const pc = this.peers.get(senderId) || this.dynamicPeers.get(senderId);
     if (!pc) return;
     try {
       await pc.addIceCandidate(new RTCIceCandidate(candidate));
     } catch (err) {
       console.warn(`[WebRTC] Error adding ICE candidate from ${senderId}:`, err);
     }
+  }
+
+  // ─── DYNAMIC BROADCAST (Emergency / Receiver) ─────────────────────────────
+  async startBroadcast(listenerIds) {
+    await this.ensureLocalStream();
+    
+    // Enable our local microphone track to start transmitting audio
+    this.setMute(false);
+
+    console.log(`[WebRTC] Starting dynamic broadcast to ${listenerIds.length} listeners`);
+
+    for (const peerId of listenerIds) {
+      if (!peerId) continue;
+      
+      // If we already have a warm channel connection, we don't need a temporary one
+      if (this.peers.has(peerId)) {
+        console.log(`[WebRTC] Using existing warm connection for ${peerId}`);
+        continue;
+      }
+
+      try {
+        const pc = new RTCPeerConnection({ iceServers: this.iceServers });
+        this.dynamicPeers.set(peerId, pc);
+
+        if (this.localStream) {
+          this.localStream.getTracks().forEach(track => {
+            pc.addTrack(track, this.localStream);
+          });
+        }
+
+        pc.onicecandidate = (event) => {
+          if (event.candidate) {
+            window.socketManager.sendSignal('signal:ice-candidate', {
+              targetId: peerId,
+              candidate: event.candidate
+            });
+          }
+        };
+
+        pc.ontrack = (event) => {
+          const stream = event.streams[0] || new MediaStream([event.track]);
+          this.playRemoteStream(peerId, stream);
+        };
+
+        pc.oniceconnectionstatechange = () => {
+          if (pc.iceConnectionState === 'failed' || pc.iceConnectionState === 'disconnected') {
+            this.closeDynamicPeer(peerId);
+          }
+        };
+
+        const offer = await pc.createOffer({
+          offerToReceiveAudio: false,
+          offerToReceiveVideo: false
+        });
+        await pc.setLocalDescription(offer);
+
+        window.socketManager.sendSignal('signal:offer', {
+          targetId: peerId,
+          offer
+        });
+
+      } catch (err) {
+        console.error(`[WebRTC] Error starting dynamic connection to ${peerId}:`, err);
+      }
+    }
+  }
+
+  stopBroadcast() {
+    // Mute local microphone track
+    this.setMute(true);
+
+    // Close and remove all temporary dynamic peer connections
+    for (const [peerId] of this.dynamicPeers.entries()) {
+      this.closeDynamicPeer(peerId);
+    }
+    console.log('[WebRTC] Broadcast stopped. Dynamic connections closed.');
   }
 
   playRemoteStream(senderId, stream) {
@@ -241,9 +334,26 @@ class WebRTCManager {
     }
   }
 
+  closeDynamicPeer(peerId) {
+    const pc = this.dynamicPeers.get(peerId);
+    if (pc) {
+      pc.close();
+      this.dynamicPeers.delete(peerId);
+    }
+    const audioEl = this.audioElements.get(peerId);
+    if (audioEl) {
+      audioEl.srcObject = null;
+      audioEl.remove();
+      this.audioElements.delete(peerId);
+    }
+  }
+
   closeAll() {
     this.peers.forEach((pc) => pc.close());
     this.peers.clear();
+
+    this.dynamicPeers.forEach((pc) => pc.close());
+    this.dynamicPeers.clear();
 
     this.audioElements.forEach((audioEl) => {
       audioEl.srcObject = null;
