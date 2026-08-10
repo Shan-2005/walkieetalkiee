@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Robofest Walkie-Talkie</string>
+    <string name="title_activity_main">Robofest Walkie-Talkie</string>
+    <string name="package_name">com.hexadynamics.walkietalkiee</string>
+    <string name="custom_url_scheme">com.hexadynamics.walkietalkiee</string>
+</resources>

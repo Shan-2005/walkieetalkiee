@@ -162,6 +162,22 @@ class PTTController {
       e.stopPropagation();
       if (!this.isToggleMode) this.stopPTT();
     }, { capture: true });
+
+    // Native Capacitor Event from MainActivity.java
+    window.addEventListener('volumeButton', (e) => {
+      // e.detail comes from Capacitor bridge (we send JSON string, some plugins parse it but let's be safe)
+      const data = typeof e.detail === 'string' ? JSON.parse(e.detail) : (e.detail || {});
+      
+      if (data.action === 'down') {
+        if (this.isToggleMode) {
+          this._handleTogglePress();
+        } else {
+          if (this._state === 'idle') this.startPTT();
+        }
+      } else if (data.action === 'up') {
+        if (!this.isToggleMode) this.stopPTT();
+      }
+    });
   }
 
   _isVolUp(e) {
