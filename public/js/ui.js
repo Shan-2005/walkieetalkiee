@@ -55,16 +55,16 @@ class UIController {
 
       card.innerHTML = `
         <div class="card-header">
-          <span class="material-symbols-outlined channel-icon">${ch.icon || 'radio'}</span>
+          <span class="material-symbols-rounded channel-icon">${ch.icon || 'radio'}</span>
           <span class="member-badge"><i class="badge-dot"></i> ${count} online</span>
         </div>
         <div class="card-body">
           <h3 class="channel-name">${ch.name}</h3>
-          <p class="channel-location"><span class="material-symbols-outlined" style="font-size:12px;vertical-align:middle;margin-right:2px;">location_on</span> ${ch.location}</p>
-          ${ch.date ? `<span class="channel-date"><span class="material-symbols-outlined" style="font-size:11px;vertical-align:middle;margin-right:2px;">calendar_today</span> ${ch.date}</span>` : ''}
+          <p class="channel-location"><span class="material-symbols-rounded" style="font-size:12px;vertical-align:middle;margin-right:2px;">location_on</span>${ch.location}</p>
+          ${ch.date ? `<span class="channel-date"><span class="material-symbols-rounded" style="font-size:11px;vertical-align:middle;margin-right:2px;">calendar_today</span>${ch.date}</span>` : ''}
         </div>
         <div class="card-footer">
-          <button class="join-btn">TAP TO JOIN</button>
+          <button class="join-btn">Tap to join</button>
         </div>
       `;
 
@@ -148,7 +148,7 @@ class UIController {
       case 'transmitting':
         btn.classList.add('state-transmitting');
         statusText.textContent = 'TRANSMITTING';
-        statusText.style.color = '#D71921';
+        statusText.style.color = '#E24B4A';
         waveform.classList.remove('hidden');
         break;
 

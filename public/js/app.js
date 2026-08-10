@@ -69,6 +69,13 @@ class AppController {
             document.getElementById('display-user-name').textContent = this.user.name;
             document.getElementById('display-user-role').textContent = this.user.role;
 
+            // Update avatar initials
+            const avatarEl = document.getElementById('display-user-avatar');
+            if (avatarEl) {
+              const initials = this.user.name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
+              avatarEl.textContent = initials;
+            }
+
             window.uiController.showToast(`Welcome, ${this.user.name}!`, 'info');
             window.uiController.renderChannelGrid();
             window.uiController.showScreen('channel-list-screen');

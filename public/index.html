@@ -7,55 +7,51 @@
   
   <!-- PWA Meta Tags -->
   <link rel="manifest" href="/manifest.json">
-  <meta name="theme-color" content="#000000">
+  <meta name="theme-color" content="#0e0e0e">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <link rel="apple-touch-icon" href="/assets/walkie-icon.png">
   <link rel="icon" type="image/png" href="/assets/walkie-icon.png">
 
-  <!-- Google Fonts: Nothing OS inspired -->
+  <!-- Google Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Doto:wght@100..900&family=Space+Grotesk:wght@400;500;600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
 
-  <!-- Material Symbols Outlined (clean line icons) -->
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0" />
+  <!-- Material Symbols -->
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@24,400,0,0" />
 
-  <!-- Stylesheet -->
-  <!-- Stylesheet -->
-  <link rel="stylesheet" href="/css/styles.css?v=3.4">
+  <link rel="stylesheet" href="/css/styles.css?v=5.0">
 </head>
 <body>
 
   <div id="app-root">
 
-    <!-- Toast Notifications Container -->
+    <!-- Toast Notifications -->
     <div id="toast-container" class="toast-container"></div>
 
-    <!-- ==========================================================================
-         SCREEN 1: LOGIN / SPOC IDENTIFICATION
-         ========================================================================== -->
+    <!-- ===== SCREEN 1: LOGIN ===== -->
     <section id="login-screen" class="view-screen active">
-      <div class="login-container">
-        
-        <div class="brand-section">
-          <div class="app-logo-wrap">
-            <span class="material-symbols-outlined app-logo-icon">radio</span>
+      <div class="login-page">
+
+        <div class="login-header">
+          <div class="login-logo">
+            <span class="material-symbols-rounded logo-icon">radio</span>
           </div>
-          <h1 class="app-title">ROBOFEST 2.0</h1>
-          <p class="app-subtitle">walkie-talkie network</p>
+          <h1 class="login-title">ROBOFEST 2.0</h1>
+          <p class="login-subtitle">Walkie-talkie network</p>
         </div>
 
-        <div class="glass-card">
-          <form id="login-form" class="login-form">
-            <div class="input-group">
-              <label for="user-name-input">Your Name</label>
-              <input type="text" id="user-name-input" class="styled-input" placeholder="e.g. Aadarsh" required autocomplete="off">
+        <div class="login-card">
+          <form id="login-form">
+            <div class="field-group">
+              <label class="field-label">Your Name</label>
+              <input type="text" id="user-name-input" class="field-input" placeholder="e.g. Aadarsh" required autocomplete="off">
             </div>
 
-            <div class="input-group">
-              <label for="user-role-select">Assigned Event / Role</label>
-              <select id="user-role-select" class="styled-select">
+            <div class="field-group">
+              <label class="field-label">Assigned Role</label>
+              <select id="user-role-select" class="field-input">
                 <option value="Drone SPOC">Drone SPOC</option>
                 <option value="War SPOC">War SPOC</option>
                 <option value="Soccer SPOC">Soccer SPOC</option>
@@ -69,124 +65,120 @@
               </select>
             </div>
 
-            <button type="submit" class="primary-btn">
-              <span class="material-symbols-outlined" style="font-size:20px;vertical-align:middle;">mic</span>
-              Connect & Allow Mic
+            <button type="submit" class="connect-btn">
+              <span class="material-symbols-rounded" style="font-size:20px;vertical-align:middle;margin-right:6px;">mic</span>
+              Connect &amp; Allow Mic
             </button>
           </form>
         </div>
 
-        <div class="brand-footer">
-          <p>SRM Institute of Science &amp; Technology</p>
-          <p>Department of Mechatronics Engineering</p>
-          <p style="margin-top:10px; font-family:'Doto',sans-serif; color:#D71921; letter-spacing:2px; font-size:0.75rem;">v4.0 (PROD)</p>
-        </div>
+        <p class="login-footer">SRM Institute of Science &amp; Technology · Mechatronics · <span style="color:#E24B4A;">v5.0</span></p>
 
       </div>
     </section>
 
-    <!-- ==========================================================================
-         SCREEN 2: CHANNEL SELECTION GRID
-         ========================================================================== -->
+    <!-- ===== SCREEN 2: CHANNEL LIST ===== -->
     <section id="channel-list-screen" class="view-screen hidden">
-      
-      <!-- Top User Bar -->
-      <div class="header-bar">
-        <div class="user-info">
-          <div class="user-avatar-main" id="display-user-avatar">RF</div>
-          <div class="user-text">
-            <h2 id="display-user-name">User Name</h2>
-            <span id="display-user-role">Role</span>
+
+      <!-- Top Navigation Bar -->
+      <div class="nav-bar">
+        <button class="nav-icon-btn" id="back-to-channels-btn" style="visibility:hidden;">
+          <span class="material-symbols-rounded">arrow_back</span>
+        </button>
+        <div class="nav-center">
+          <span class="nav-title">ROBOFEST 2.0</span>
+          <span class="nav-sub">Walkie-talkie network</span>
+        </div>
+        <button class="nav-icon-btn">
+          <span class="material-symbols-rounded">notifications</span>
+        </button>
+      </div>
+
+      <!-- User Profile Card -->
+      <div class="user-profile-card">
+        <div class="profile-left">
+          <div class="profile-avatar" id="display-user-avatar">RF</div>
+          <div class="profile-info">
+            <span class="profile-name" id="display-user-name">User</span>
+            <span class="profile-role" id="display-user-role">Role</span>
           </div>
         </div>
-
-        <div class="status-badge">
-          <span class="status-dot"></span>
-          <span>Online</span>
+        <div class="online-badge">
+          <span class="online-dot"></span>
+          Online
         </div>
       </div>
 
-      <h3 class="section-title">Select Channel</h3>
+      <!-- Section Label -->
+      <div class="section-label">SELECT CHANNEL</div>
 
-      <!-- 10 Channel Cards Grid -->
-      <div id="channel-grid" class="channel-grid">
-        <!-- Rendered dynamically via ui.js -->
-      </div>
+      <!-- Channel Grid (rendered by ui.js) -->
+      <div id="channel-grid" class="channel-grid"></div>
 
     </section>
 
-    <!-- ==========================================================================
-         SCREEN 3: ACTIVE WALKIE-TALKIE CHANNEL VIEW
-         ========================================================================== -->
+    <!-- ===== SCREEN 3: ACTIVE CHANNEL VIEW ===== -->
     <section id="channel-view-screen" class="view-screen hidden">
-      <div class="channel-view-container">
+      <div class="channel-view-wrap">
 
-        <!-- Top Navigation -->
-        <div>
-          <div class="top-nav">
-            <button id="back-to-channels-btn" class="icon-btn" title="Back to Channels">
-              <span class="material-symbols-outlined">arrow_back</span>
-            </button>
-            <div class="channel-title-group">
-              <h2><span id="active-channel-icon" class="material-symbols-outlined" style="font-size:22px;vertical-align:middle;margin-right:4px;">cell_tower</span> <span id="active-channel-title">Drone</span></h2>
-              <p id="active-channel-location">Milkha Singh Ground</p>
-            </div>
-            <div class="user-avatar" id="active-member-count">1</div>
+        <!-- Top Nav -->
+        <div class="nav-bar">
+          <button class="nav-icon-btn" id="back-to-channels-btn">
+            <span class="material-symbols-rounded">arrow_back</span>
+          </button>
+          <div class="nav-center">
+            <span class="nav-title" id="active-channel-title">Channel</span>
+            <span class="nav-sub" id="active-channel-location">Location</span>
           </div>
-          <div id="channel-theme-bar" class="channel-accent-bar"></div>
-
-          <!-- Active Members List -->
-          <div class="members-bar">
-            <span style="font-size:0.7rem; color:var(--text-secondary); font-weight:600; letter-spacing:1.5px;">MEMBERS</span>
-            <div id="member-avatars" class="member-avatars-scroll">
-              <!-- Avatar initials rendered dynamically -->
-            </div>
+          <div class="member-count-chip">
+            <span class="material-symbols-rounded" style="font-size:14px;">people</span>
+            <span id="active-member-count">0</span>
           </div>
         </div>
 
-        <!-- Center Waveform & Speaker Indicator -->
-        <div class="display-center">
-          
-          <div id="speaker-indicator" class="speaker-card hidden">
-            <div class="speaker-avatar">
-              <span class="material-symbols-outlined" style="font-size:2rem;">mic</span>
-            </div>
-            <h3 id="speaker-name" style="font-size:1.1rem; color:var(--accent-red); font-family:'Silkscreen',monospace;">Someone</h3>
-            <p style="font-size:0.75rem; color:var(--text-secondary); letter-spacing:1px;">is transmitting audio...</p>
-          </div>
+        <div id="channel-theme-bar" class="channel-accent-bar"></div>
 
-          <!-- Voice 5-Bar Waveform -->
-          <div id="audio-waveform" class="waveform-bars hidden">
-            <span></span>
-            <span></span>
-            <span></span>
-            <span></span>
-            <span></span>
-          </div>
-
+        <!-- Members Strip -->
+        <div class="members-strip">
+          <span class="members-label">MEMBERS</span>
+          <div id="member-avatars" class="member-avatars-row"></div>
         </div>
 
-        <!-- Bottom Push-To-Talk Controls -->
-        <div class="ptt-container">
-          
-          <div class="ptt-btn-outer">
+        <!-- Center Display -->
+        <div class="center-display">
+          <div id="speaker-indicator" class="speaker-indicator hidden">
+            <div class="speaker-avatar-ring">
+              <span class="material-symbols-rounded" style="font-size:2rem;color:#E24B4A;">mic</span>
+            </div>
+            <p class="speaker-name" id="speaker-name">Someone</p>
+            <p class="speaker-sub">is transmitting audio...</p>
+          </div>
+
+          <div id="audio-waveform" class="waveform hidden">
+            <span></span><span></span><span></span><span></span><span></span>
+          </div>
+        </div>
+
+        <!-- PTT Bottom -->
+        <div class="ptt-zone">
+          <div class="ptt-status-line">
+            <p id="ptt-status-text" class="ptt-status">Hold Volume Up or Press to Talk</p>
+          </div>
+
+          <div class="ptt-outer">
             <button id="ptt-button" class="ptt-btn">
-              <span class="material-symbols-outlined ptt-btn-icon">mic</span>
-              <span class="ptt-btn-label">PUSH TO TALK</span>
+              <span class="material-symbols-rounded ptt-icon">mic</span>
             </button>
-            <div class="ptt-pulse-ring"></div>
+            <div class="ptt-ring"></div>
           </div>
 
-          <p id="ptt-status-text" class="ptt-status-text">Hold Volume Up or Press to Talk</p>
-
-          <div class="toggle-mode-container">
-            <label class="switch">
+          <div class="toggle-row">
+            <label class="toggle-switch">
               <input type="checkbox" id="toggle-mode-checkbox">
-              <span class="slider round"></span>
+              <span class="toggle-track"><span class="toggle-thumb"></span></span>
             </label>
-            <span style="font-size: 0.75rem; color: var(--text-secondary); font-weight: 500; letter-spacing: 0.5px;">Tap to Talk (Toggle)</span>
+            <span class="toggle-label">Tap to Talk (Toggle)</span>
           </div>
-
         </div>
 
       </div>
@@ -194,17 +186,14 @@
 
   </div>
 
-  <!-- Socket.IO Client Library -->
   <script src="/socket.io/socket.io.js"></script>
-
-  <!-- Application Modules -->
-  <script src="/js/channels.js?v=4.0"></script>
-  <script src="/js/socket.js?v=4.0"></script>
-  <script src="/js/audio.js?v=4.0"></script>
-  <script src="/js/webrtc.js?v=4.0"></script>
-  <script src="/js/ptt.js?v=4.0"></script>
-  <script src="/js/ui.js?v=4.0"></script>
-  <script src="/js/app.js?v=4.0"></script>
+  <script src="/js/channels.js?v=5.0"></script>
+  <script src="/js/socket.js?v=5.0"></script>
+  <script src="/js/audio.js?v=5.0"></script>
+  <script src="/js/webrtc.js?v=5.0"></script>
+  <script src="/js/ptt.js?v=5.0"></script>
+  <script src="/js/ui.js?v=5.0"></script>
+  <script src="/js/app.js?v=5.0"></script>
 
 </body>
 </html>
