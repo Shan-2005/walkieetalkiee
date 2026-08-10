@@ -6,6 +6,7 @@ class WebRTCManager {
     this.audioElements = new Map();     // peerSocketId -> HTMLAudioElement
     this.localStream = null;
     this.rawMicStream = null;
+    this.localStreamPromise = null;
 
     // Web Audio Nodes for foolproof hardware muting
     this.audioCtx = null;
@@ -31,35 +32,43 @@ class WebRTCManager {
   // Ensure we have a local mic stream ready (tracks routed via GainNode set to 0)
   async ensureLocalStream() {
     if (this.localStream && this.localStream.active) return this.localStream;
-    try {
-      const rawStream = await window.audioEngine.requestMicPermission();
-      
-      const audioCtx = window.audioEngine.initAudioContext();
-      this.audioCtx = audioCtx;
+    if (this.localStreamPromise) return this.localStreamPromise;
 
-      // Clean up previous nodes if any
-      if (this.micSourceNode) this.micSourceNode.disconnect();
-      if (this.micGainNode) this.micGainNode.disconnect();
+    this.localStreamPromise = (async () => {
+      try {
+        const rawStream = await window.audioEngine.requestMicPermission();
+        
+        const audioCtx = window.audioEngine.initAudioContext();
+        this.audioCtx = audioCtx;
 
-      // Route microphone through Web Audio GainNode for absolute mute security
-      this.micSourceNode = audioCtx.createMediaStreamSource(rawStream);
-      this.micGainNode = audioCtx.createGain();
-      this.micGainNode.gain.value = 0.0; // Muted by default (absolute silence)
+        // Clean up previous nodes if any
+        if (this.micSourceNode) this.micSourceNode.disconnect();
+        if (this.micGainNode) this.micGainNode.disconnect();
 
-      this.micDestinationNode = audioCtx.createMediaStreamDestination();
-      
-      this.micSourceNode.connect(this.micGainNode);
-      this.micGainNode.connect(this.micDestinationNode);
+        // Route microphone through Web Audio GainNode for absolute mute security
+        this.micSourceNode = audioCtx.createMediaStreamSource(rawStream);
+        this.micGainNode = audioCtx.createGain();
+        this.micGainNode.gain.value = 0.0; // Muted by default (absolute silence)
 
-      this.localStream = this.micDestinationNode.stream;
-      this.rawMicStream = rawStream;
+        this.micDestinationNode = audioCtx.createMediaStreamDestination();
+        
+        this.micSourceNode.connect(this.micGainNode);
+        this.micGainNode.connect(this.micDestinationNode);
 
-      console.log('[WebRTC] Web Audio mic routing initialized. Muted by default.');
-      return this.localStream;
-    } catch (err) {
-      console.error('[WebRTC] Failed to get local stream:', err);
-      throw err;
-    }
+        this.localStream = this.micDestinationNode.stream;
+        this.rawMicStream = rawStream;
+
+        console.log('[WebRTC] Web Audio mic routing initialized. Muted by default.');
+        this.localStreamPromise = null;
+        return this.localStream;
+      } catch (err) {
+        this.localStreamPromise = null;
+        console.error('[WebRTC] Failed to get local stream:', err);
+        throw err;
+      }
+    })();
+
+    return this.localStreamPromise;
   }
 
   // Enable/disable transmission of microphone audio using Web Audio Gain
@@ -136,7 +145,7 @@ class WebRTCManager {
 
       pc.oniceconnectionstatechange = () => {
         console.log(`[WebRTC] Connection with ${peerId} state: ${pc.iceConnectionState}`);
-        if (pc.iceConnectionState === 'failed' || pc.iceConnectionState === 'disconnected') {
+        if (pc.iceConnectionState === 'failed') {
           this.closePeer(peerId);
         }
       };
@@ -206,7 +215,7 @@ class WebRTCManager {
 
       pc.oniceconnectionstatechange = () => {
         console.log(`[WebRTC] Connection with ${senderId} state: ${pc.iceConnectionState}`);
-        if (pc.iceConnectionState === 'failed' || pc.iceConnectionState === 'disconnected') {
+        if (pc.iceConnectionState === 'failed') {
           if (isDynamic) {
             this.closeDynamicPeer(senderId);
           } else {
@@ -293,7 +302,7 @@ class WebRTCManager {
         };
 
         pc.oniceconnectionstatechange = () => {
-          if (pc.iceConnectionState === 'failed' || pc.iceConnectionState === 'disconnected') {
+          if (pc.iceConnectionState === 'failed') {
             this.closeDynamicPeer(peerId);
           }
         };

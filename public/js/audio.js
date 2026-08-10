@@ -3,6 +3,7 @@ class AudioEngine {
   constructor() {
     this.audioCtx = null;
     this.mediaStream = null;
+    this.micPromise = null;
     this.setupIOSAudioUnlock();
   }
 
@@ -79,24 +80,29 @@ class AudioEngine {
     }
   }
 
-  // Request Microphone Stream for WebRTC
   async requestMicPermission() {
     if (this.mediaStream && this.mediaStream.active) return this.mediaStream;
-    try {
-      this.mediaStream = await navigator.mediaDevices.getUserMedia({
-        audio: {
-          echoCancellation: true,
-          noiseSuppression: true,
-          autoGainControl: true,
-          channelCount: 1,
-          sampleRate: 16000
-        }
-      });
-      return this.mediaStream;
-    } catch (err) {
+    if (this.micPromise) return this.micPromise;
+
+    this.micPromise = navigator.mediaDevices.getUserMedia({
+      audio: {
+        echoCancellation: true,
+        noiseSuppression: true,
+        autoGainControl: true,
+        channelCount: 1,
+        sampleRate: 16000
+      }
+    }).then(stream => {
+      this.mediaStream = stream;
+      this.micPromise = null;
+      return stream;
+    }).catch(err => {
+      this.micPromise = null;
       console.error('[Audio] Mic permission denied:', err);
       throw err;
-    }
+    });
+
+    return this.micPromise;
   }
 
   stopMic() {

@@ -7,6 +7,11 @@ class UIController {
 
   init() {
     this.requestWakeLock();
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') {
+        this.requestWakeLock();
+      }
+    });
   }
 
   // Prevent mobile screen from sleeping during active walkie-talkie session

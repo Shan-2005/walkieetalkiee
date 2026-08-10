@@ -21,6 +21,8 @@ class PTTController {
     this._volDebounceTimer = null;
     this._lastVolAction = 0;
 
+    this.squeezeActive = false;
+
     this._initHardwareKeys();
     this._initMobileVolume();
     this._initSideEdgeZone();
@@ -198,7 +200,10 @@ class PTTController {
       // We track JS-originated changes using a flag.
       this._volChangingByJS = false;
       audio.addEventListener('volumechange', () => {
-        if (this._volChangingByJS) return; // skip JS-triggered changes
+        if (this._volChangingByJS) {
+          this._volChangingByJS = false;
+          return; // skip JS-triggered changes
+        }
         this._onVolumeChange();
       });
     } catch (err) {
@@ -305,7 +310,6 @@ class PTTController {
         if (this._volProbeAudio) {
           this._volChangingByJS = true;
           this._volProbeAudio.volume = 0.01;
-          requestAnimationFrame(() => { this._volChangingByJS = false; });
         }
       }, 200);
     }, 100);
@@ -353,7 +357,7 @@ class PTTController {
 
     zone.addEventListener('touchstart', (e) => {
       e.preventDefault();
-      squeezeActive = true;
+      this.squeezeActive = true;
       indicator.style.background = 'rgba(215, 25, 33, 0.8)';
       indicator.style.height = '60px';
 
@@ -370,7 +374,7 @@ class PTTController {
 
     zone.addEventListener('touchend', (e) => {
       e.preventDefault();
-      squeezeActive = false;
+      this.squeezeActive = false;
       indicator.style.background = 'rgba(215, 25, 33, 0.3)';
       indicator.style.height = '40px';
 
@@ -379,7 +383,7 @@ class PTTController {
 
     zone.addEventListener('touchcancel', (e) => {
       e.preventDefault();
-      squeezeActive = false;
+      this.squeezeActive = false;
       indicator.style.background = 'rgba(215, 25, 33, 0.3)';
       indicator.style.height = '40px';
       if (!this.isToggleMode) this.stopPTT();

@@ -166,7 +166,7 @@ class AppController {
           window.uiController.updatePTTState('idle');
           window.audioEngine.playBeep('stop');
           if ((data.isEmergency || data.channelId === 'all') && window.webrtcManager) {
-            window.webrtcManager.closeEmergencyPeer(data.socketId);
+            window.webrtcManager.closeDynamicPeer(data.socketId);
           }
         }
       }
