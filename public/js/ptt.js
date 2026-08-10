@@ -39,6 +39,7 @@ class PTTController {
 
   setChannel(channelId) {
     this.currentChannelId = channelId;
+    this._updateMediaMetadata();
   }
 
   setToggleMode(enabled) {
@@ -220,15 +221,29 @@ class PTTController {
     // is required for volumechange events to fire on hardware press.
     if ('mediaSession' in navigator) {
       try {
-        navigator.mediaSession.metadata = new MediaMetadata({
-          title: 'Robofest 2.0 Walkie-Talkie',
-          artist: 'PTT Channel Active',
-        });
-        // We don't need actual action handlers — just having metadata
-        // registered keeps the media session alive.
-        navigator.mediaSession.setActionHandler('play', () => {});
-        navigator.mediaSession.setActionHandler('pause', () => {});
-        console.log('[PTT] MediaSession registered.');
+        this._updateMediaMetadata();
+
+        // Bind media control buttons to PTT toggle
+        // This makes lock screen widgets, Bluetooth headset buttons, and smartwatch controls work!
+        const pttAction = () => {
+          console.log('[PTT] MediaSession action triggered');
+          if (this.isToggleMode) {
+            this._handleTogglePress();
+          } else {
+            // When using physical media buttons, enforce toggle mode automatically
+            // so they don't have to hold the button down.
+            this.setToggleMode(true);
+            document.getElementById('toggle-mode-checkbox').checked = true;
+            this._handleTogglePress();
+          }
+        };
+
+        navigator.mediaSession.setActionHandler('play', pttAction);
+        navigator.mediaSession.setActionHandler('pause', pttAction);
+        navigator.mediaSession.setActionHandler('previoustrack', pttAction);
+        navigator.mediaSession.setActionHandler('nexttrack', pttAction);
+        
+        console.log('[PTT] MediaSession registered for Lock Screen widget.');
       } catch (e) {
         console.warn('[PTT] MediaSession setup failed:', e);
       }
@@ -243,6 +258,22 @@ class PTTController {
         console.warn('[PTT] Volume probe play failed (autoplay policy):', err);
         // Not fatal — on-screen button still works
       });
+  }
+
+  _updateMediaMetadata() {
+    if ('mediaSession' in navigator && window.channelManager && this.currentChannelId) {
+      const channel = window.channelManager.getChannelById(this.currentChannelId);
+      if (channel) {
+        navigator.mediaSession.metadata = new MediaMetadata({
+          title: `Channel: ${channel.name}`,
+          artist: 'Robofest 2.0 Walkie-Talkie',
+          artwork: [
+            { src: '/assets/walkie-icon.png', sizes: '192x192', type: 'image/png' },
+            { src: '/assets/walkie-icon.png', sizes: '512x512', type: 'image/png' }
+          ]
+        });
+      }
+    }
   }
 
   _onVolumeChange() {
