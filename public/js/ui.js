@@ -79,14 +79,12 @@ class UIController {
   // Render active channel view screen
   renderActiveChannelView(channel) {
     const headerTitle = document.getElementById('active-channel-title');
-    const headerIcon = document.getElementById('active-channel-icon');
     const headerLocation = document.getElementById('active-channel-location');
     const channelThemeBar = document.getElementById('channel-theme-bar');
 
     if (headerTitle) headerTitle.textContent = channel.name;
-    if (headerIcon) headerIcon.textContent = channel.icon || 'radio';
     if (headerLocation) headerLocation.textContent = channel.location;
-    if (channelThemeBar) channelThemeBar.style.backgroundColor = channel.color;
+    if (channelThemeBar) channelThemeBar.style.backgroundColor = channel.color || '#E24B4A';
 
     this.updatePTTState('idle');
   }

@@ -84,8 +84,8 @@ class AppController {
       });
     }
 
-    // 2. Back to Channels Button
-    const backBtn = document.getElementById('back-to-channels-btn');
+    // 2. Back to Channels Button (channel-view-screen only)
+    const backBtn = document.getElementById('channel-back-btn');
     if (backBtn) {
       backBtn.addEventListener('click', () => {
         this.leaveCurrentChannel();

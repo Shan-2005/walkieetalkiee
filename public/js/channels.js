@@ -153,7 +153,7 @@ class ChannelManager {
   }
 
   getAllChannels() {
-    return [this.allChannel, ...this.events];
+    return this.events;
   }
 
   getChannelById(id) {
