@@ -14,6 +14,10 @@ class WebRTCManager {
     this.micGainNode = null;
     this.micDestinationNode = null;
 
+    // Broadcast session guard — prevents overlapping broadcasts
+    this._broadcastActive = false;
+    this._broadcastId = 0;
+
     // Default public STUN servers
     this.iceServers = [
       { urls: 'stun:stun.l.google.com:19302' },
@@ -42,8 +46,8 @@ class WebRTCManager {
         this.audioCtx = audioCtx;
 
         // Clean up previous nodes if any
-        if (this.micSourceNode) this.micSourceNode.disconnect();
-        if (this.micGainNode) this.micGainNode.disconnect();
+        if (this.micSourceNode) { try { this.micSourceNode.disconnect(); } catch(_) {} }
+        if (this.micGainNode) { try { this.micGainNode.disconnect(); } catch(_) {} }
 
         // Route microphone through Web Audio GainNode for absolute mute security
         this.micSourceNode = audioCtx.createMediaStreamSource(rawStream);
@@ -74,13 +78,32 @@ class WebRTCManager {
   // Enable/disable transmission of microphone audio using Web Audio Gain
   setMute(isMuted) {
     if (this.micGainNode && this.audioCtx) {
-      const targetVal = isMuted ? 0.0 : 1.0;
-      // Smooth 10ms exponential ramp to prevent audio pops and clicks
-      this.micGainNode.gain.setTargetAtTime(targetVal, this.audioCtx.currentTime, 0.01);
-      console.log(`[WebRTC] Web Audio mic gain set to: ${targetVal}`);
+      // CRITICAL: Resume AudioContext first if suspended (mobile browsers suspend it on background)
+      if (this.audioCtx.state === 'suspended') {
+        this.audioCtx.resume().then(() => {
+          console.log('[WebRTC] AudioContext resumed from suspended state.');
+          this._applyGain(isMuted);
+        });
+      } else {
+        this._applyGain(isMuted);
+      }
     } else {
       console.warn('[WebRTC] Cannot set mute state: Web Audio nodes not initialized.');
     }
+  }
+
+  _applyGain(isMuted) {
+    if (!this.micGainNode || !this.audioCtx) return;
+    const targetVal = isMuted ? 0.0 : 1.0;
+    // Smooth 10ms exponential ramp to prevent audio pops and clicks
+    try {
+      this.micGainNode.gain.cancelScheduledValues(this.audioCtx.currentTime);
+      this.micGainNode.gain.setTargetAtTime(targetVal, this.audioCtx.currentTime, 0.01);
+    } catch (e) {
+      // Fallback: set directly
+      this.micGainNode.gain.value = targetVal;
+    }
+    console.log(`[WebRTC] Web Audio mic gain set to: ${targetVal}`);
   }
 
   // Sync connections with the current list of channel members
@@ -261,19 +284,64 @@ class WebRTCManager {
 
   // ─── DYNAMIC BROADCAST (Emergency / Receiver) ─────────────────────────────
   async startBroadcast(listenerIds) {
-    await this.ensureLocalStream();
+    // Increment broadcast session ID — any previous in-flight broadcasts become stale
+    const sessionId = ++this._broadcastId;
+
+    try {
+      await this.ensureLocalStream();
+    } catch (err) {
+      console.error('[WebRTC] Cannot start broadcast — mic unavailable:', err);
+      return;
+    }
+
+    // Check if this broadcast session is still current
+    if (sessionId !== this._broadcastId) {
+      console.log('[WebRTC] Broadcast session superseded — aborting.');
+      return;
+    }
+
+    // Mark broadcast as active
+    this._broadcastActive = true;
     
     // Enable our local microphone track to start transmitting audio
     this.setMute(false);
+
+    // Verify the mic stream is still alive (can die on mobile if user revoked permission)
+    if (this.rawMicStream && !this.rawMicStream.active) {
+      console.warn('[WebRTC] Raw mic stream is dead — re-acquiring.');
+      this.localStream = null;
+      this.rawMicStream = null;
+      this.localStreamPromise = null;
+      try {
+        await this.ensureLocalStream();
+        this.setMute(false);
+      } catch (err) {
+        console.error('[WebRTC] Failed to re-acquire mic:', err);
+        this._broadcastActive = false;
+        return;
+      }
+    }
 
     console.log(`[WebRTC] Starting dynamic broadcast to ${listenerIds.length} listeners`);
 
     for (const peerId of listenerIds) {
       if (!peerId) continue;
       
+      // Abort if broadcast was cancelled while we're iterating
+      if (sessionId !== this._broadcastId || !this._broadcastActive) {
+        console.log('[WebRTC] Broadcast cancelled mid-setup — stopping peer creation.');
+        break;
+      }
+
       // If we already have a warm channel connection, we don't need a temporary one
       if (this.peers.has(peerId)) {
         console.log(`[WebRTC] Using existing warm connection for ${peerId}`);
+        continue;
+      }
+
+      // Skip if we already have a dynamic connection to this peer
+      if (this.dynamicPeers.has(peerId)) {
+        console.log(`[WebRTC] Already have dynamic connection to ${peerId} — skipping.`);
         continue;
       }
 
@@ -325,6 +393,10 @@ class WebRTCManager {
   }
 
   stopBroadcast() {
+    // Invalidate any in-flight broadcast sessions
+    this._broadcastId++;
+    this._broadcastActive = false;
+
     // Mute local microphone track
     this.setMute(true);
 
@@ -355,7 +427,7 @@ class WebRTCManager {
   closePeer(peerId) {
     const pc = this.peers.get(peerId);
     if (pc) {
-      pc.close();
+      try { pc.close(); } catch (_) {}
       this.peers.delete(peerId);
     }
     const audioEl = this.audioElements.get(peerId);
@@ -369,7 +441,7 @@ class WebRTCManager {
   closeDynamicPeer(peerId) {
     const pc = this.dynamicPeers.get(peerId);
     if (pc) {
-      pc.close();
+      try { pc.close(); } catch (_) {}
       this.dynamicPeers.delete(peerId);
     }
     const audioEl = this.audioElements.get(peerId);
@@ -381,10 +453,14 @@ class WebRTCManager {
   }
 
   closeAll() {
-    this.peers.forEach((pc) => pc.close());
+    // Invalidate any in-flight broadcasts
+    this._broadcastId++;
+    this._broadcastActive = false;
+
+    this.peers.forEach((pc) => { try { pc.close(); } catch(_) {} });
     this.peers.clear();
 
-    this.dynamicPeers.forEach((pc) => pc.close());
+    this.dynamicPeers.forEach((pc) => { try { pc.close(); } catch(_) {} });
     this.dynamicPeers.clear();
 
     this.audioElements.forEach((audioEl) => {
@@ -395,11 +471,11 @@ class WebRTCManager {
 
     // Clean up Web Audio routing
     if (this.micSourceNode) {
-      this.micSourceNode.disconnect();
+      try { this.micSourceNode.disconnect(); } catch(_) {}
       this.micSourceNode = null;
     }
     if (this.micGainNode) {
-      this.micGainNode.disconnect();
+      try { this.micGainNode.disconnect(); } catch(_) {}
       this.micGainNode = null;
     }
     this.micDestinationNode = null;

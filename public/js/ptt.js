@@ -1,4 +1,4 @@
-// Push-to-Talk Controller — v2.4
+// Push-to-Talk Controller — v3.0 (Bulletproof)
 // Multi-strategy mobile PTT:
 //  1. Desktop: keydown/keyup for Volume Up key
 //  2. Mobile: volumechange on audio element (Android Chrome)
@@ -22,6 +22,12 @@ class PTTController {
     this._lastVolAction = 0;
 
     this.squeezeActive = false;
+
+    // ── Anti-spam / anti-hang guards ──────────────────────────────────────
+    this._actionCooldownMs = 400;   // Min ms between any PTT action
+    this._lastActionTime = 0;
+    this._pendingRequest = false;   // True while we're waiting for server grant/deny
+    this._requestTimeoutId = null;  // Safety timeout if server never responds
 
     this._initHardwareKeys();
     this._initMobileVolume();
@@ -56,11 +62,41 @@ class PTTController {
     this._startVolProbe();
   }
 
-  async startPTT() {
-    if (this._state !== 'idle') return;
-    if (!this.currentChannelId) return;
+  // ─── Cooldown guard — prevents ALL rapid-fire actions ─────────────────
+  _canAct() {
+    const now = Date.now();
+    if (now - this._lastActionTime < this._actionCooldownMs) {
+      console.log('[PTT] Action throttled (cooldown).');
+      return false;
+    }
+    this._lastActionTime = now;
+    return true;
+  }
 
+  async startPTT() {
+    if (this._state !== 'idle') {
+      console.log(`[PTT] startPTT ignored — state is '${this._state}', not 'idle'.`);
+      return;
+    }
+    if (!this.currentChannelId) return;
+    if (this._pendingRequest) {
+      console.log('[PTT] startPTT ignored — already have a pending request.');
+      return;
+    }
+
+    this._pendingRequest = true;
     this._setState('requesting');
+
+    // Safety: If the server never responds, auto-reset after 5s
+    clearTimeout(this._requestTimeoutId);
+    this._requestTimeoutId = setTimeout(() => {
+      if (this._state === 'requesting') {
+        console.warn('[PTT] Request timed out — force resetting to idle.');
+        this._pendingRequest = false;
+        this._setState('idle');
+      }
+    }, 5000);
+
     window.socketManager.requestPTT(this.currentChannelId, '');
   }
 
@@ -68,22 +104,54 @@ class PTTController {
     if (this._state === 'idle') return;
 
     const wasTransmitting = this._state === 'transmitting';
+    const wasRequesting = this._state === 'requesting';
+
+    // Clean up pending request state
+    this._pendingRequest = false;
+    clearTimeout(this._requestTimeoutId);
+
     this._setState('idle');
 
     if (wasTransmitting) {
       if (window.webrtcManager) window.webrtcManager.stopBroadcast();
       window.audioEngine.playBeep('stop');
       window.socketManager.releasePTT(this.currentChannelId);
+    } else if (wasRequesting) {
+      // We were still waiting for grant — tell server to release just in case
+      // it granted between our request and this stop
+      window.socketManager.releasePTT(this.currentChannelId);
     }
   }
 
   // ─── Server event callbacks ──────────────────────────────────────────────
   onFloorGranted() {
-    if (this._state !== 'requesting') return;
+    // Clear safety timeout
+    clearTimeout(this._requestTimeoutId);
+    this._pendingRequest = false;
+
+    if (this._state !== 'requesting') {
+      // We already cancelled — tell server to release
+      console.warn('[PTT] Floor granted but state is not requesting — releasing.');
+      window.socketManager.releasePTT(this.currentChannelId);
+      return;
+    }
+
     this._setState('transmitting');
     window.audioEngine.playBeep('start');
 
+    // Ensure AudioContext is running before unmuting (critical on mobile)
+    if (window.audioEngine.audioCtx && window.audioEngine.audioCtx.state === 'suspended') {
+      window.audioEngine.audioCtx.resume().then(() => {
+        console.log('[PTT] AudioContext resumed before broadcast.');
+      });
+    }
+
     window.socketManager.getChannelListeners(this.currentChannelId, (res) => {
+      // Re-check state — user may have released during the async callback
+      if (this._state !== 'transmitting') {
+        console.log('[PTT] State changed during getChannelListeners — aborting broadcast.');
+        return;
+      }
       const listenerIds = res ? res.listeners : [];
       if (window.webrtcManager) {
         window.webrtcManager.startBroadcast(listenerIds);
@@ -92,6 +160,9 @@ class PTTController {
   }
 
   onFloorDenied(currentSpeaker) {
+    clearTimeout(this._requestTimeoutId);
+    this._pendingRequest = false;
+
     this._setState('blocked');
     window.uiController.showToast(`Floor busy — ${currentSpeaker || 'someone'} is talking.`, 'warning');
     setTimeout(() => {
@@ -121,11 +192,14 @@ class PTTController {
 
   _handleTogglePress() {
     if (!this.currentChannelId) return;
+    if (!this._canAct()) return;
+
     if (this._state === 'transmitting' || this._state === 'requesting') {
       this.stopPTT();
     } else if (this._state === 'idle') {
       this.startPTT();
     }
+    // If 'blocked', ignore — can't start/stop
   }
 
   // ─── Strategy 1: Desktop keyboard volume up ───────────────────────────────
@@ -137,7 +211,7 @@ class PTTController {
       if (this.isToggleMode) {
         this._handleTogglePress();
       } else {
-        if (this._state === 'idle') this.startPTT();
+        if (this._canAct() && this._state === 'idle') this.startPTT();
       }
     }, { capture: true });
 
@@ -157,7 +231,7 @@ class PTTController {
         if (this.isToggleMode) {
           this._handleTogglePress();
         } else {
-          if (this._state === 'idle') this.startPTT();
+          if (this._canAct() && this._state === 'idle') this.startPTT();
         }
       } else if (data.action === 'up') {
         if (!this.isToggleMode) this.stopPTT();
@@ -189,7 +263,7 @@ class PTTController {
       audio.style.display = 'none';
 
       // 10-second silent MP3 data URI (convinces browser of real continuous playback)
-      audio.src = 'data:audio/mp3;base64,SUQzBAAAAAAAI1RTU0UAAAAPAAADTGFtZTMuOTguNCAoYmV0YSkAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD/+0MUAAAP8AAAAAZgAAB/4AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD/+0MUAAAP8AAAAAZgAAB/4AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD/+0MUAAAP8AAAAAZgAAB/4AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD/+0MUAAAP8AAAAAZgAAB/4AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD/';
+      audio.src = 'data:audio/mp3;base64,SUQzBAAAAAAAI1RTU0UAAAAPAAADTGFtZTMuOTguNCAoYmV0YSkAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD/+0MUAAAP8AAAAAZgAAB/4AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD/+0MUAAAP8AAAAAZgAAB/4AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD/+0MUAAAP8AAAAAZgAAB/4AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD/+0MUAAAP8AAAAAZgAAB/4AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD/';
 
       document.body.appendChild(audio);
       this._volProbeAudio = audio;
@@ -364,7 +438,7 @@ class PTTController {
       if (this.isToggleMode) {
         this._handleTogglePress();
       } else {
-        if (this._state === 'idle') this.startPTT();
+        if (this._canAct() && this._state === 'idle') this.startPTT();
       }
     }, { passive: false });
 
@@ -401,12 +475,13 @@ class PTTController {
     // Mobile Touch Events: Guaranteed immunity to finger wiggling/sliding
     this.pttButtonEl.addEventListener('touchstart', (e) => {
       e.preventDefault();
+      if (isTouching) return; // Prevent duplicate touch events
       isTouching = true;
 
       if (this.isToggleMode) {
         this._handleTogglePress();
       } else {
-        if (this._state === 'idle') this.startPTT();
+        if (this._canAct() && this._state === 'idle') this.startPTT();
       }
     }, { passive: false });
 
@@ -438,7 +513,7 @@ class PTTController {
       if (this.isToggleMode) {
         this._handleTogglePress();
       } else {
-        if (this._state === 'idle') this.startPTT();
+        if (this._canAct() && this._state === 'idle') this.startPTT();
       }
     });
 
