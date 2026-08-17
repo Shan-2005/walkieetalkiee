@@ -170,6 +170,27 @@ class SocketManager {
     }
   }
 
+  checkAndReconnect() {
+    if (!this.lastUser) return;
+
+    console.log('[Socket] Checking connection state (wake-up / tab focus)...');
+    if (!this.socket || !this.socket.connected) {
+      console.log('[Socket] Slept or zombie socket — destroying & establishing fresh connection...');
+      if (this.socket) {
+        try { this.socket.disconnect(); } catch (_) {}
+        this.socket = null;
+      }
+      this.connect();
+    } else {
+      console.log('[Socket] Socket active — re-verifying session with server...');
+      this.socket.emit('user:join', this.lastUser, () => {
+        if (this.lastChannel) {
+          this.socket.emit('channel:join', { channelId: this.lastChannel });
+        }
+      });
+    }
+  }
+
   // Local event emitter pattern
   on(event, fn) {
     if (!this.listeners.has(event)) {
