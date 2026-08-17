@@ -18,11 +18,14 @@ class WebRTCManager {
     this._broadcastActive = false;
     this._broadcastId = 0;
 
-    // Default public STUN servers
+    // Default public STUN & TURN servers for College Wi-Fi / AP Isolation fallback
     this.iceServers = [
       { urls: 'stun:stun.l.google.com:19302' },
       { urls: 'stun:stun1.l.google.com:19302' },
-      { urls: 'stun:stun2.l.google.com:19302' }
+      { urls: 'stun:stun2.l.google.com:19302' },
+      { urls: 'turn:openrelay.metered.ca:80', username: 'openrelay', credential: 'openrelay' },
+      { urls: 'turn:openrelay.metered.ca:443', username: 'openrelay', credential: 'openrelay' },
+      { urls: 'turn:openrelay.metered.ca:443?transport=tcp', username: 'openrelay', credential: 'openrelay' }
     ];
   }
 
@@ -169,6 +172,7 @@ class WebRTCManager {
       pc.oniceconnectionstatechange = () => {
         console.log(`[WebRTC] Connection with ${peerId} state: ${pc.iceConnectionState}`);
         if (pc.iceConnectionState === 'failed') {
+          if (window.pttController) window.pttController.notifyICEFailure();
           this.closePeer(peerId);
         }
       };
@@ -239,6 +243,7 @@ class WebRTCManager {
       pc.oniceconnectionstatechange = () => {
         console.log(`[WebRTC] Connection with ${senderId} state: ${pc.iceConnectionState}`);
         if (pc.iceConnectionState === 'failed') {
+          if (window.pttController) window.pttController.notifyICEFailure();
           if (isDynamic) {
             this.closeDynamicPeer(senderId);
           } else {
@@ -371,6 +376,7 @@ class WebRTCManager {
 
         pc.oniceconnectionstatechange = () => {
           if (pc.iceConnectionState === 'failed') {
+            if (window.pttController) window.pttController.notifyICEFailure();
             this.closeDynamicPeer(peerId);
           }
         };

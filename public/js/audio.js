@@ -4,6 +4,9 @@ class AudioEngine {
     this.audioCtx = null;
     this.mediaStream = null;
     this.micPromise = null;
+    this.mediaRecorder = null;
+    this.currentMimeType = '';
+    this.nextPlaybackTime = 0;
     this.setupIOSAudioUnlock();
   }
 
@@ -110,6 +113,81 @@ class AudioEngine {
       this.mediaStream.getTracks().forEach(track => track.stop());
       this.mediaStream = null;
     }
+  }
+
+  // ─── Socket.IO Voice Relay Streamer ──────────────────────────────────────
+  async startRecordingStream(onChunk) {
+    if (this.mediaRecorder && this.mediaRecorder.state !== 'inactive') {
+      this.stopRecordingStream();
+    }
+
+    const stream = await this.requestMicPermission();
+
+    let mimeType = 'audio/webm;codecs=opus';
+    if (!MediaRecorder.isTypeSupported(mimeType)) {
+      if (MediaRecorder.isTypeSupported('audio/webm')) mimeType = 'audio/webm';
+      else if (MediaRecorder.isTypeSupported('audio/mp4')) mimeType = 'audio/mp4';
+      else if (MediaRecorder.isTypeSupported('audio/aac')) mimeType = 'audio/aac';
+      else mimeType = '';
+    }
+
+    const options = mimeType ? { mimeType } : {};
+    this.mediaRecorder = new MediaRecorder(stream, options);
+    this.currentMimeType = this.mediaRecorder.mimeType || mimeType;
+
+    this.mediaRecorder.ondataavailable = async (e) => {
+      if (e.data && e.data.size > 0 && typeof onChunk === 'function') {
+        const arrayBuffer = await e.data.arrayBuffer();
+        onChunk(arrayBuffer, this.currentMimeType);
+      }
+    };
+
+    // Emit chunk every 100ms for low-latency transmission
+    this.mediaRecorder.start(100);
+    console.log(`[AudioEngine] Socket Relay MediaRecorder started (${this.currentMimeType})`);
+  }
+
+  stopRecordingStream() {
+    if (this.mediaRecorder && this.mediaRecorder.state !== 'inactive') {
+      try { this.mediaRecorder.stop(); } catch(_) {}
+    }
+    this.mediaRecorder = null;
+    console.log('[AudioEngine] Socket Relay MediaRecorder stopped.');
+  }
+
+  // ─── Socket.IO Voice Relay Playback Engine ──────────────────────────────
+  playAudioChunk(arrayBuffer) {
+    if (!arrayBuffer || arrayBuffer.byteLength === 0) return;
+
+    this.initAudioContext();
+    if (this.audioCtx.state === 'suspended') {
+      this.audioCtx.resume();
+    }
+
+    const bufferCopy = arrayBuffer.slice(0);
+    this.audioCtx.decodeAudioData(bufferCopy, (decodedBuffer) => {
+      try {
+        const source = this.audioCtx.createBufferSource();
+        source.buffer = decodedBuffer;
+        source.connect(this.audioCtx.destination);
+
+        const currentTime = this.audioCtx.currentTime;
+        if (this.nextPlaybackTime < currentTime) {
+          this.nextPlaybackTime = currentTime + 0.05; // 50ms initial jitter cushion
+        }
+
+        source.start(this.nextPlaybackTime);
+        this.nextPlaybackTime += decodedBuffer.duration;
+      } catch (err) {
+        console.warn('[AudioEngine] Buffer source playback failed:', err);
+      }
+    }, (err) => {
+      console.warn('[AudioEngine] Audio chunk decode failed:', err);
+    });
+  }
+
+  resetPlaybackQueue() {
+    this.nextPlaybackTime = 0;
   }
 }
 

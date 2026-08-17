@@ -12,6 +12,19 @@ class UIController {
         this.requestWakeLock();
       }
     });
+
+    // Check secure context for mobile HTTP warning banner
+    if (!window.isSecureContext && location.hostname !== 'localhost' && location.hostname !== '127.0.0.1') {
+      const banner = document.getElementById('insecure-context-banner');
+      if (banner) banner.classList.remove('hidden');
+    }
+  }
+
+  updateTransportBadge(mode) {
+    const select = document.getElementById('transport-mode-select');
+    if (select) {
+      select.value = mode;
+    }
   }
 
   // Prevent mobile screen from sleeping during active walkie-talkie session

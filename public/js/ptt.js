@@ -12,6 +12,7 @@ class PTTController {
     this._state = 'idle';
 
     this.isToggleMode = false;
+    this.transportMode = 'socket'; // Default to Socket.IO relay (100% College Wi-Fi safe)
     this.currentChannelId = null;
     this.pttButtonEl = null;
 
@@ -48,6 +49,26 @@ class PTTController {
   setChannel(channelId) {
     this.currentChannelId = channelId;
     this._updateMediaMetadata();
+  }
+
+  setTransportMode(mode) {
+    if (['socket', 'webrtc', 'auto'].includes(mode)) {
+      this.transportMode = mode;
+      console.log('[PTT] Transport mode set to:', mode);
+      if (window.uiController && typeof window.uiController.updateTransportBadge === 'function') {
+        window.uiController.updateTransportBadge(mode);
+      }
+    }
+  }
+
+  notifyICEFailure() {
+    if (this.transportMode === 'webrtc' || this.transportMode === 'auto') {
+      console.warn('[PTT] WebRTC ICE failed (College Wi-Fi AP isolation). Auto-switching to Socket.IO Relay.');
+      this.setTransportMode('socket');
+      if (window.uiController) {
+        window.uiController.showToast('Switched to College Wi-Fi Socket Relay mode', 'warning');
+      }
+    }
   }
 
   setToggleMode(enabled) {
@@ -114,23 +135,20 @@ class PTTController {
 
     if (wasTransmitting) {
       if (window.webrtcManager) window.webrtcManager.stopBroadcast();
+      if (window.audioEngine) window.audioEngine.stopRecordingStream();
       window.audioEngine.playBeep('stop');
       window.socketManager.releasePTT(this.currentChannelId);
     } else if (wasRequesting) {
-      // We were still waiting for grant — tell server to release just in case
-      // it granted between our request and this stop
       window.socketManager.releasePTT(this.currentChannelId);
     }
   }
 
   // ─── Server event callbacks ──────────────────────────────────────────────
   onFloorGranted() {
-    // Clear safety timeout
     clearTimeout(this._requestTimeoutId);
     this._pendingRequest = false;
 
     if (this._state !== 'requesting') {
-      // We already cancelled — tell server to release
       console.warn('[PTT] Floor granted but state is not requesting — releasing.');
       window.socketManager.releasePTT(this.currentChannelId);
       return;
@@ -139,24 +157,31 @@ class PTTController {
     this._setState('transmitting');
     window.audioEngine.playBeep('start');
 
-    // Ensure AudioContext is running before unmuting (critical on mobile)
     if (window.audioEngine.audioCtx && window.audioEngine.audioCtx.state === 'suspended') {
       window.audioEngine.audioCtx.resume().then(() => {
         console.log('[PTT] AudioContext resumed before broadcast.');
       });
     }
 
-    window.socketManager.getChannelListeners(this.currentChannelId, (res) => {
-      // Re-check state — user may have released during the async callback
-      if (this._state !== 'transmitting') {
-        console.log('[PTT] State changed during getChannelListeners — aborting broadcast.');
-        return;
-      }
-      const listenerIds = res ? res.listeners : [];
-      if (window.webrtcManager) {
-        window.webrtcManager.startBroadcast(listenerIds);
-      }
-    });
+    // 1. Socket.IO Voice Relay Mode (College Wi-Fi safe)
+    if (this.transportMode === 'socket' || this.transportMode === 'auto') {
+      window.audioEngine.startRecordingStream((chunk, mimeType) => {
+        if (this._state === 'transmitting' && this.currentChannelId) {
+          window.socketManager.sendAudioChunk(this.currentChannelId, chunk, mimeType);
+        }
+      });
+    }
+
+    // 2. WebRTC P2P Mode
+    if (this.transportMode === 'webrtc' || this.transportMode === 'auto') {
+      window.socketManager.getChannelListeners(this.currentChannelId, (res) => {
+        if (this._state !== 'transmitting') return;
+        const listenerIds = res ? res.listeners : [];
+        if (window.webrtcManager) {
+          window.webrtcManager.startBroadcast(listenerIds);
+        }
+      });
+    }
   }
 
   onFloorDenied(currentSpeaker) {

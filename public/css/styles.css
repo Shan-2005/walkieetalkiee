@@ -779,3 +779,82 @@ html, body {
    SCROLLBAR GLOBAL
    ============================================================================= */
 ::-webkit-scrollbar { width: 0; height: 0; }
+
+/* =============================================================================
+   MODALS (INSTALL PWA & EDIT PROFILE)
+   ============================================================================= */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.75);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  z-index: 10000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  animation: modal-fade-in 0.25s ease-out forwards;
+}
+
+@keyframes modal-fade-in {
+  from { opacity: 0; transform: scale(0.95); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+.modal-card {
+  background: var(--bg-card);
+  border: 1.5px solid var(--border);
+  border-radius: var(--r-xl);
+  padding: 24px;
+  width: 100%;
+  max-width: 360px;
+  box-shadow: 0 16px 40px rgba(0,0,0,0.8), 0 0 30px var(--red-glow);
+  position: relative;
+}
+
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+
+.modal-title {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--text-1);
+}
+
+.modal-close-btn {
+  background: none;
+  border: none;
+  color: var(--text-2);
+  font-size: 1.5rem;
+  cursor: pointer;
+  line-height: 1;
+}
+
+.modal-btn {
+  padding: 10px 16px;
+  border-radius: var(--r-md);
+  font-family: var(--font);
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: var(--ease);
+  border: none;
+}
+.btn-primary {
+  background: var(--red);
+  color: #fff;
+  box-shadow: 0 4px 14px rgba(226,75,74,0.3);
+}
+.btn-primary:active {
+  transform: scale(0.96);
+}
+.btn-secondary {
+  background: rgba(255,255,255,0.08);
+  border: 1px solid rgba(255,255,255,0.1);
+  color: var(--text-2);
+}

@@ -42,6 +42,14 @@
           <p class="login-subtitle">Walkie-talkie network</p>
         </div>
 
+        <div id="insecure-context-banner" class="warning-banner hidden" style="background:rgba(226,75,74,0.15); border:1px solid rgba(226,75,74,0.4); border-radius:var(--r-md); padding:12px; margin-bottom:16px; text-align:left; font-size:12px; line-height:1.4;">
+          <div style="display:flex; align-items:center; gap:6px; color:#E24B4A; font-weight:700; margin-bottom:4px;">
+            <span class="material-symbols-rounded" style="font-size:18px;">warning</span>
+            <span>Mobile Wi-Fi HTTP Warning</span>
+          </div>
+          <p style="color:var(--text-sub); margin:0;">Browsers block mic access on unencrypted HTTP (<code>http://&lt;ip&gt;:3000</code>). For mobile phones on College Wi-Fi, deploy with HTTPS or enable <code>chrome://flags/#unsafely-treat-insecure-origin-as-secure</code>.</p>
+        </div>
+
         <div class="login-card">
           <form id="login-form">
             <div class="field-group">
@@ -89,8 +97,8 @@
           <span class="nav-title">ROBOFEST 2.0</span>
           <span class="nav-sub">Walkie-talkie network</span>
         </div>
-        <button class="nav-icon-btn">
-          <span class="material-symbols-rounded">notifications</span>
+        <button id="pwa-install-header-btn" class="nav-icon-btn" title="Install Walkie-Talkie App">
+          <span class="material-symbols-rounded">download</span>
         </button>
       </div>
 
@@ -103,9 +111,15 @@
             <span class="profile-role" id="display-user-role">Role</span>
           </div>
         </div>
-        <div class="online-badge">
-          <span class="online-dot"></span>
-          Online
+        <div class="profile-right" style="display:flex; align-items:center; gap:8px;">
+          <button id="edit-profile-btn" class="edit-profile-btn" style="background:rgba(255,255,255,0.08); border:1px solid var(--border); color:#fff; border-radius:8px; padding:5px 9px; font-size:11px; display:flex; align-items:center; gap:4px; cursor:pointer;">
+            <span class="material-symbols-rounded" style="font-size:14px;">edit</span>
+            Edit
+          </button>
+          <div class="online-badge">
+            <span class="online-dot"></span>
+            Online
+          </div>
         </div>
       </div>
 
@@ -179,10 +193,77 @@
             </label>
             <span class="toggle-label">Tap to Talk (Toggle)</span>
           </div>
+
+          <div class="transport-row" style="display:flex; align-items:center; justify-content:center; gap:8px; margin-top:8px; font-size:12px; color:var(--text-sub);">
+            <span class="material-symbols-rounded" style="font-size:16px; color:#E24B4A;">cell_tower</span>
+            <span>Network Mode:</span>
+            <select id="transport-mode-select" class="transport-select" style="background:rgba(255,255,255,0.06); border:1px solid var(--border); color:#fff; border-radius:6px; padding:3px 8px; font-size:11px; cursor:pointer;">
+              <option value="socket">📡 College Wi-Fi Relay (Safe)</option>
+              <option value="webrtc">⚡ Direct P2P (WebRTC)</option>
+              <option value="auto">🔄 Auto Hybrid Mode</option>
+            </select>
+          </div>
         </div>
 
       </div>
     </section>
+
+    <!-- Edit Profile Modal -->
+    <div id="edit-profile-modal" class="modal-overlay hidden">
+      <div class="modal-card">
+        <div class="modal-header">
+          <h3 class="modal-title">Edit Profile</h3>
+          <button id="close-edit-modal-btn" class="modal-close-btn">&times;</button>
+        </div>
+        <form id="edit-profile-form">
+          <div class="field-group" style="margin-bottom:12px;">
+            <label class="field-label">Your Name</label>
+            <input type="text" id="edit-user-name-input" class="field-input" required autocomplete="off">
+          </div>
+          <div class="field-group" style="margin-bottom:18px;">
+            <label class="field-label">Assigned Role</label>
+            <select id="edit-user-role-select" class="field-input">
+              <option value="Drone SPOC">Drone SPOC</option>
+              <option value="War SPOC">War SPOC</option>
+              <option value="Soccer SPOC">Soccer SPOC</option>
+              <option value="LFR SPOC">LFR SPOC</option>
+              <option value="Obs Race SPOC">Obs Race SPOC</option>
+              <option value="SUMO SPOC">SUMO SPOC</option>
+              <option value="EXPO SPOC">EXPO SPOC</option>
+              <option value="Boat SPOC">Boat SPOC</option>
+              <option value="Core Committee">Core Committee</option>
+              <option value="Volunteer">Team Volunteer</option>
+            </select>
+          </div>
+          <div class="modal-actions" style="display:flex; justify-content:flex-end; gap:8px;">
+            <button type="button" id="cancel-edit-profile-btn" class="modal-btn btn-secondary">Cancel</button>
+            <button type="submit" class="modal-btn btn-primary">Save Profile</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- PWA Install Modal -->
+    <div id="pwa-install-modal" class="modal-overlay hidden">
+      <div class="modal-card">
+        <div class="install-header" style="display:flex; align-items:center; gap:12px; margin-bottom:16px;">
+          <div style="width:48px; height:48px; border-radius:12px; overflow:hidden; border:1px solid var(--border); flex-shrink:0;">
+            <img src="/assets/walkie-icon.png" alt="App Icon" style="width:100%; height:100%; object-fit:cover;">
+          </div>
+          <div style="text-align:left;">
+            <h3 style="margin:0; font-size:16px; color:#fff;">Install Walkie-Talkie</h3>
+            <p style="margin:4px 0 0; font-size:12px; color:var(--text-2);">Install Robofest 2.0 on your phone's home screen for fast 1-tap PTT access!</p>
+          </div>
+        </div>
+        <div class="modal-actions" style="display:flex; justify-content:flex-end; gap:8px;">
+          <button id="pwa-dismiss-btn" class="modal-btn btn-secondary">Not Now</button>
+          <button id="pwa-install-btn" class="modal-btn btn-primary" style="display:flex; align-items:center; gap:4px;">
+            <span class="material-symbols-rounded" style="font-size:16px;">download</span>
+            Install Now
+          </button>
+        </div>
+      </div>
+    </div>
 
   </div>
 

@@ -84,6 +84,11 @@ class SocketManager {
     this.socket.on('signal:ice-candidate', (data) => {
       this.emitLocal('signal:ice-candidate', data);
     });
+
+    // Socket.IO Voice Binary Audio Stream Listener (College Wi-Fi Relay)
+    this.socket.on('audio:stream', (data) => {
+      this.emitLocal('audio:stream', data);
+    });
   }
 
   joinUser(name, role, callback) {
@@ -114,6 +119,12 @@ class SocketManager {
   releasePTT(channelId) {
     if (this.socket) {
       this.socket.emit('ptt:release', { channelId });
+    }
+  }
+
+  sendAudioChunk(channelId, chunk, mimeType) {
+    if (this.socket && this.isConnected) {
+      this.socket.emit('audio:stream', { channelId, chunk, mimeType });
     }
   }
 

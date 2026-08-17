@@ -397,6 +397,36 @@ io.on('connection', (socket) => {
     });
   });
 
+  // Socket.IO Binary Voice Streaming Relay (College Wi-Fi AP Isolation Fallback)
+  socket.on('audio:stream', ({ channelId, chunk, mimeType }) => {
+    const user = users.get(socket.id);
+    if (!user) return;
+    const targetChannel = channelId || user.channel;
+    if (!targetChannel) return;
+
+    // Verify floor ownership for audio relay
+    const owner = floorOwner.get(targetChannel);
+    if (owner && owner !== socket.id) {
+      return; // Ignore audio chunks if sender does not hold the floor
+    }
+
+    const audioPayload = {
+      senderId: socket.id,
+      senderName: user.name,
+      channelId: targetChannel,
+      chunk,
+      mimeType: mimeType || 'audio/webm;codecs=opus'
+    };
+
+    if (targetChannel === 'all') {
+      // Master broadcast to everyone except sender
+      socket.broadcast.emit('audio:stream', audioPayload);
+    } else {
+      // Channel broadcast to room members except sender
+      socket.to(targetChannel).emit('audio:stream', audioPayload);
+    }
+  });
+
   socket.on('disconnect', () => {
     const user = users.get(socket.id);
     if (user) {
