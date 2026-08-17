@@ -115,131 +115,103 @@ class AudioEngine {
     }
   }
 
-  // ─── Socket.IO Voice Relay Streamer ──────────────────────────────────────
+  // ─── Socket.IO Voice Relay Streamer (PCM Direct Audio) ─────────────────────
   async startRecordingStream(onChunk) {
-    if (this.mediaRecorder && this.mediaRecorder.state !== 'inactive') {
-      this.stopRecordingStream();
-    }
+    this.stopRecordingStream();
 
-    const stream = await this.requestMicPermission();
+    try {
+      const stream = await this.requestMicPermission();
+      const audioCtx = this.initAudioContext();
 
-    let mimeType = 'audio/webm;codecs=opus';
-    if (!MediaRecorder.isTypeSupported(mimeType)) {
-      if (MediaRecorder.isTypeSupported('audio/webm')) mimeType = 'audio/webm';
-      else if (MediaRecorder.isTypeSupported('audio/mp4')) mimeType = 'audio/mp4';
-      else if (MediaRecorder.isTypeSupported('audio/aac')) mimeType = 'audio/aac';
-      else mimeType = '';
-    }
-
-    const options = mimeType ? { mimeType } : {};
-    this.mediaRecorder = new MediaRecorder(stream, options);
-    this.currentMimeType = this.mediaRecorder.mimeType || mimeType;
-
-    this.mediaRecorder.ondataavailable = async (e) => {
-      if (e.data && e.data.size > 0 && typeof onChunk === 'function') {
-        const arrayBuffer = await e.data.arrayBuffer();
-        onChunk(arrayBuffer, this.currentMimeType);
+      if (audioCtx.state === 'suspended') {
+        await audioCtx.resume();
       }
-    };
 
-    // Emit chunk every 100ms for low-latency transmission
-    this.mediaRecorder.start(100);
-    console.log(`[AudioEngine] Socket Relay MediaRecorder started (${this.currentMimeType})`);
+      this.pcmSourceNode = audioCtx.createMediaStreamSource(stream);
+      // 2048 buffer size gives ~46ms low-latency PCM slices at 44.1kHz / 48kHz
+      this.pcmProcessorNode = (audioCtx.createScriptProcessor || audioCtx.createJavaScriptNode).call(audioCtx, 2048, 1, 1);
+
+      const nativeSampleRate = audioCtx.sampleRate;
+
+      this.pcmProcessorNode.onaudioprocess = (e) => {
+        if (this.isPCMRecording && typeof onChunk === 'function') {
+          const float32Data = e.inputBuffer.getChannelData(0);
+          // Convert Float32 [-1.0, 1.0] to Int16 [-32768, 32767] for 50% bandwidth optimization
+          const int16Array = new Int16Array(float32Data.length);
+          for (let i = 0; i < float32Data.length; i++) {
+            const s = Math.max(-1, Math.min(1, float32Data[i]));
+            int16Array[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
+          }
+          onChunk(int16Array.buffer, `pcm/${nativeSampleRate}`);
+        }
+      };
+
+      this.pcmSourceNode.connect(this.pcmProcessorNode);
+      this.pcmProcessorNode.connect(audioCtx.destination);
+      this.isPCMRecording = true;
+      console.log(`[AudioEngine] Direct PCM Streamer started (${nativeSampleRate} Hz)`);
+    } catch(err) {
+      console.error('[AudioEngine] PCM Streamer failed to start:', err);
+    }
   }
 
   stopRecordingStream() {
-    if (this.mediaRecorder && this.mediaRecorder.state !== 'inactive') {
-      try { this.mediaRecorder.stop(); } catch(_) {}
+    this.isPCMRecording = false;
+    if (this.pcmProcessorNode) {
+      try { this.pcmProcessorNode.disconnect(); } catch(_) {}
+      this.pcmProcessorNode = null;
     }
-    this.mediaRecorder = null;
-    console.log('[AudioEngine] Socket Relay MediaRecorder stopped.');
+    if (this.pcmSourceNode) {
+      try { this.pcmSourceNode.disconnect(); } catch(_) {}
+      this.pcmSourceNode = null;
+    }
+    console.log('[AudioEngine] Direct PCM Streamer stopped.');
   }
 
-  // ─── Socket.IO Voice Relay Playback Engine (MediaSource Stream) ─────────
-  initRelayPlayer(mimeType) {
-    this.stopRelayPlayer();
-
-    const codec = mimeType || 'audio/webm; codecs="opus"';
-    let supportedMime = 'audio/webm; codecs="opus"';
-
-    if (MediaSource.isTypeSupported && MediaSource.isTypeSupported(codec)) {
-      supportedMime = codec;
-    } else if (MediaSource.isTypeSupported && MediaSource.isTypeSupported('audio/webm')) {
-      supportedMime = 'audio/webm';
-    } else if (MediaSource.isTypeSupported && MediaSource.isTypeSupported('audio/mp4')) {
-      supportedMime = 'audio/mp4';
-    }
-
-    try {
-      this.relayMediaSource = new MediaSource();
-      this.relayAudioEl = document.createElement('audio');
-      this.relayAudioEl.autoplay = true;
-      this.relayAudioEl.playsInline = true;
-      this.relayAudioEl.src = URL.createObjectURL(this.relayMediaSource);
-      this.relayChunkQueue = [];
-      this.sourceBuffer = null;
-
-      this.relayMediaSource.addEventListener('sourceopen', () => {
-        try {
-          this.sourceBuffer = this.relayMediaSource.addSourceBuffer(supportedMime);
-          this.sourceBuffer.mode = 'sequence';
-
-          const processQueue = () => {
-            if (this.relayChunkQueue.length > 0 && this.sourceBuffer && !this.sourceBuffer.updating) {
-              const nextChunk = this.relayChunkQueue.shift();
-              try {
-                this.sourceBuffer.appendBuffer(nextChunk);
-              } catch(e) {
-                console.warn('[AudioEngine] SourceBuffer append error:', e);
-              }
-            }
-          };
-
-          this.sourceBuffer.addEventListener('updateend', processQueue);
-          processQueue();
-        } catch(e) {
-          console.warn('[AudioEngine] MediaSource addSourceBuffer error:', e);
-        }
-      });
-
-      this.relayAudioEl.play().catch(e => console.warn('[AudioEngine] Relay audio play failed:', e));
-    } catch(e) {
-      console.error('[AudioEngine] Failed to init MediaSource relay player:', e);
-    }
-  }
-
+  // ─── Socket.IO Voice Relay Playback Engine (Direct PCM AudioBuffer) ─────
   playAudioChunk(arrayBuffer, mimeType) {
     if (!arrayBuffer || arrayBuffer.byteLength === 0) return;
 
-    if (!this.relayMediaSource || this.relayMediaSource.readyState === 'closed') {
-      this.initRelayPlayer(mimeType);
+    // Parse sample rate from mimeType if available (e.g. 'pcm/44100')
+    let sampleRate = 44100;
+    if (mimeType && mimeType.startsWith('pcm/')) {
+      const parsedRate = parseInt(mimeType.split('/')[1], 10);
+      if (parsedRate && !isNaN(parsedRate)) sampleRate = parsedRate;
     }
 
-    if (this.sourceBuffer && !this.sourceBuffer.updating) {
-      try {
-        this.sourceBuffer.appendBuffer(arrayBuffer);
-      } catch (err) {
-        this.relayChunkQueue.push(arrayBuffer);
+    const audioCtx = this.initAudioContext();
+    if (audioCtx.state === 'suspended') {
+      audioCtx.resume();
+    }
+
+    try {
+      const int16Array = new Int16Array(arrayBuffer);
+      const float32Array = new Float32Array(int16Array.length);
+      for (let i = 0; i < int16Array.length; i++) {
+        float32Array[i] = int16Array[i] / (int16Array[i] < 0 ? 0x8000 : 0x7FFF);
       }
-    } else {
-      if (!this.relayChunkQueue) this.relayChunkQueue = [];
-      this.relayChunkQueue.push(arrayBuffer);
-    }
 
-    if (this.relayAudioEl && this.relayAudioEl.paused) {
-      this.relayAudioEl.play().catch(() => {});
+      const audioBuffer = audioCtx.createBuffer(1, float32Array.length, sampleRate);
+      audioBuffer.getChannelData(0).set(float32Array);
+
+      const sourceNode = audioCtx.createBufferSource();
+      sourceNode.buffer = audioBuffer;
+      sourceNode.connect(audioCtx.destination);
+
+      const currentTime = audioCtx.currentTime;
+      if (!this.nextPCMPlaybackTime || this.nextPCMPlaybackTime < currentTime) {
+        this.nextPCMPlaybackTime = currentTime + 0.02; // 20ms initial cushion
+      }
+
+      sourceNode.start(this.nextPCMPlaybackTime);
+      this.nextPCMPlaybackTime += audioBuffer.duration;
+    } catch(err) {
+      console.warn('[AudioEngine] PCM chunk playback error:', err);
     }
   }
 
   stopRelayPlayer() {
-    this.relayChunkQueue = [];
-    if (this.relayAudioEl) {
-      try { this.relayAudioEl.pause(); } catch(_) {}
-      try { URL.revokeObjectURL(this.relayAudioEl.src); } catch(_) {}
-      this.relayAudioEl = null;
-    }
-    this.relayMediaSource = null;
-    this.sourceBuffer = null;
+    this.nextPCMPlaybackTime = 0;
   }
 
   resetPlaybackQueue() {
