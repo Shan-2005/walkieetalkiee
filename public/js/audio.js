@@ -4,7 +4,8 @@ class AudioEngine {
     this.audioCtx = null;
     this.mediaStream = null;
     this.micPromise = null;
-    this.nextPCMPlaybackTime = 0;
+    this.nextPCMPlaybackTime = 0;          // legacy (kept for compatibility)
+    this._playbackClocks = new Map();      // senderId -> nextPlaybackTime (per-channel simultaneous support)
     this.isPCMRecording = false;
     this.pcmSourceNode = null;
     this.pcmWorkletNode = null;
@@ -209,8 +210,8 @@ class AudioEngine {
     console.log('[AudioEngine] PCM Streamer stopped.');
   }
 
-  // ─── Socket.IO Voice Relay Playback Engine (Direct PCM AudioBuffer) ─────────
-  async playAudioChunk(rawChunk, mimeType) {
+  // ─── Socket.IO Voice Relay Playback Engine (per-sender clock for simultaneous channels) ─
+  async playAudioChunk(rawChunk, mimeType, senderId) {
     if (!rawChunk) return;
 
     // Normalize to ArrayBuffer — Socket.IO may deliver Uint8Array or Buffer on some platforms
@@ -226,7 +227,7 @@ class AudioEngine {
     if (arrayBuffer.byteLength < 2) return;
 
     // Parse native sample rate from mimeType (e.g. 'pcm/44100' or 'pcm/48000')
-    // Phones (Android) use 48000Hz, laptops use 44100Hz — MUST match or audio plays at wrong pitch!
+    // Android phones = 48000Hz, laptops = 44100Hz — MUST match or audio is wrong pitch!
     let sampleRate = 44100;
     if (mimeType && typeof mimeType === 'string' && mimeType.startsWith('pcm/')) {
       const parsedRate = parseInt(mimeType.split('/')[1], 10);
@@ -235,7 +236,6 @@ class AudioEngine {
 
     const audioCtx = this.initAudioContext();
     // CRITICAL: Await resume — desktop Chrome suspends AudioContext until user gesture.
-    // Calling source.start() on a suspended context silently drops all audio frames!
     if (audioCtx.state === 'suspended') {
       try { await audioCtx.resume(); } catch(_) {}
     }
@@ -255,20 +255,28 @@ class AudioEngine {
       sourceNode.connect(audioCtx.destination);
 
       const currentTime = audioCtx.currentTime;
-      // 60ms initial jitter buffer prevents underrun gaps on first chunk
-      if (!this.nextPCMPlaybackTime || this.nextPCMPlaybackTime < currentTime) {
-        this.nextPCMPlaybackTime = currentTime + 0.06;
+      const clockKey = senderId || 'default';
+
+      // Each sender gets an independent playback clock — simultaneous channel support!
+      let nextTime = this._playbackClocks.get(clockKey) || 0;
+      if (nextTime < currentTime) {
+        nextTime = currentTime + 0.06; // 60ms initial jitter cushion
       }
 
-      sourceNode.start(this.nextPCMPlaybackTime);
-      this.nextPCMPlaybackTime += audioBuffer.duration;
+      sourceNode.start(nextTime);
+      this._playbackClocks.set(clockKey, nextTime + audioBuffer.duration);
     } catch(err) {
       console.warn('[AudioEngine] Playback error:', err);
     }
   }
 
-  stopRelayPlayer() {
-    this.nextPCMPlaybackTime = 0;
+  stopRelayPlayer(senderId) {
+    if (senderId) {
+      this._playbackClocks.delete(senderId);
+    } else {
+      this._playbackClocks.clear();
+      this.nextPCMPlaybackTime = 0;
+    }
   }
 
   resetPlaybackQueue() {

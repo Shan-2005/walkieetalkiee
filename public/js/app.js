@@ -308,6 +308,8 @@ class AppController {
           window.pttController.onFloorReleased();
           window.uiController.updatePTTState('idle');
           window.audioEngine.playBeep('stop');
+          // Reset only that specific sender's playback clock, not all channels
+          if (window.audioEngine) window.audioEngine.stopRelayPlayer(data.socketId);
           if ((data.isEmergency || data.channelId === 'all') && window.webrtcManager) {
             window.webrtcManager.closeDynamicPeer(data.socketId);
           }
@@ -334,13 +336,13 @@ class AppController {
       }
     });
 
-    // Socket.IO Voice Relay Audio Handler (College Wi-Fi AP Isolation Fallback)
+    // Socket.IO Voice Relay Audio Handler
     window.socketManager.on('audio:stream', (data) => {
       if (data.senderId !== window.socketManager.currentUserId) {
         if (data.channelId === 'all' || (this.currentChannel && data.channelId === this.currentChannel.id)) {
           if (window.audioEngine) {
-            // CRITICAL: pass mimeType so receiver uses correct sample rate (phones=48kHz, laptops=44.1kHz)
-            window.audioEngine.playAudioChunk(data.chunk, data.mimeType);
+            // Pass senderId so each speaker gets an independent playback clock (simultaneous channels)
+            window.audioEngine.playAudioChunk(data.chunk, data.mimeType, data.senderId);
           }
         }
       }
