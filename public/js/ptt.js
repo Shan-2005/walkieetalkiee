@@ -25,7 +25,7 @@ class PTTController {
     this.squeezeActive = false;
 
     // ── Anti-spam / anti-hang guards ──────────────────────────────────────
-    this._actionCooldownMs = 400;   // Min ms between any PTT action
+    this._actionCooldownMs = 150;   // Min ms between any PTT action (responsive)
     this._lastActionTime = 0;
     this._pendingRequest = false;   // True while we're waiting for server grant/deny
     this._requestTimeoutId = null;  // Safety timeout if server never responds

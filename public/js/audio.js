@@ -128,8 +128,13 @@ class AudioEngine {
       }
 
       this.pcmSourceNode = audioCtx.createMediaStreamSource(stream);
-      // 2048 buffer size gives ~46ms low-latency PCM slices at 44.1kHz / 48kHz
-      this.pcmProcessorNode = (audioCtx.createScriptProcessor || audioCtx.createJavaScriptNode).call(audioCtx, 2048, 1, 1);
+      // 4096 buffer size gives ~92ms chunks at 44.1kHz / 48kHz — optimal for socket packets
+      const bufferSize = 4096;
+      this.pcmProcessorNode = (audioCtx.createScriptProcessor || audioCtx.createJavaScriptNode).call(audioCtx, bufferSize, 1, 1);
+
+      // CRITICAL: Anchor to window to prevent V8 Garbage Collection from stopping audio processing after 0.5s!
+      window._activePCMProcessor = this.pcmProcessorNode;
+      window._activePCMSource = this.pcmSourceNode;
 
       const nativeSampleRate = audioCtx.sampleRate;
 
@@ -149,7 +154,7 @@ class AudioEngine {
       this.pcmSourceNode.connect(this.pcmProcessorNode);
       this.pcmProcessorNode.connect(audioCtx.destination);
       this.isPCMRecording = true;
-      console.log(`[AudioEngine] Direct PCM Streamer started (${nativeSampleRate} Hz)`);
+      console.log(`[AudioEngine] Direct PCM Streamer started (${nativeSampleRate} Hz, 4096 buffer)`);
     } catch(err) {
       console.error('[AudioEngine] PCM Streamer failed to start:', err);
     }
@@ -165,16 +170,30 @@ class AudioEngine {
       try { this.pcmSourceNode.disconnect(); } catch(_) {}
       this.pcmSourceNode = null;
     }
+    window._activePCMProcessor = null;
+    window._activePCMSource = null;
     console.log('[AudioEngine] Direct PCM Streamer stopped.');
   }
 
   // ─── Socket.IO Voice Relay Playback Engine (Direct PCM AudioBuffer) ─────
-  playAudioChunk(arrayBuffer, mimeType) {
-    if (!arrayBuffer || arrayBuffer.byteLength === 0) return;
+  playAudioChunk(rawChunk, mimeType) {
+    if (!rawChunk) return;
 
-    // Parse sample rate from mimeType if available (e.g. 'pcm/44100')
+    let arrayBuffer;
+    if (rawChunk instanceof ArrayBuffer) {
+      arrayBuffer = rawChunk;
+    } else if (ArrayBuffer.isView(rawChunk)) {
+      arrayBuffer = rawChunk.buffer.slice(rawChunk.byteOffset, rawChunk.byteOffset + rawChunk.byteLength);
+    } else if (rawChunk && rawChunk.buffer) {
+      arrayBuffer = rawChunk.buffer;
+    } else {
+      return;
+    }
+
+    if (arrayBuffer.byteLength < 2) return;
+
     let sampleRate = 44100;
-    if (mimeType && mimeType.startsWith('pcm/')) {
+    if (mimeType && typeof mimeType === 'string' && mimeType.startsWith('pcm/')) {
       const parsedRate = parseInt(mimeType.split('/')[1], 10);
       if (parsedRate && !isNaN(parsedRate)) sampleRate = parsedRate;
     }
@@ -188,7 +207,7 @@ class AudioEngine {
       const int16Array = new Int16Array(arrayBuffer);
       const float32Array = new Float32Array(int16Array.length);
       for (let i = 0; i < int16Array.length; i++) {
-        float32Array[i] = int16Array[i] / (int16Array[i] < 0 ? 0x8000 : 0x7FFF);
+        float32Array[i] = int16Array[i] / (int16Array[i] < 0 ? 32768 : 32767);
       }
 
       const audioBuffer = audioCtx.createBuffer(1, float32Array.length, sampleRate);
@@ -199,8 +218,9 @@ class AudioEngine {
       sourceNode.connect(audioCtx.destination);
 
       const currentTime = audioCtx.currentTime;
+      // 60ms jitter cushion prevents micro-stutters and buffer gaps
       if (!this.nextPCMPlaybackTime || this.nextPCMPlaybackTime < currentTime) {
-        this.nextPCMPlaybackTime = currentTime + 0.02; // 20ms initial cushion
+        this.nextPCMPlaybackTime = currentTime + 0.06;
       }
 
       sourceNode.start(this.nextPCMPlaybackTime);
