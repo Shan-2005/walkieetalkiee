@@ -339,7 +339,8 @@ class AppController {
       if (data.senderId !== window.socketManager.currentUserId) {
         if (data.channelId === 'all' || (this.currentChannel && data.channelId === this.currentChannel.id)) {
           if (window.audioEngine) {
-            window.audioEngine.playAudioChunk(data.chunk);
+            // CRITICAL: pass mimeType so receiver uses correct sample rate (phones=48kHz, laptops=44.1kHz)
+            window.audioEngine.playAudioChunk(data.chunk, data.mimeType);
           }
         }
       }

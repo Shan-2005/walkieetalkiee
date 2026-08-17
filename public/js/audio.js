@@ -210,7 +210,7 @@ class AudioEngine {
   }
 
   // ─── Socket.IO Voice Relay Playback Engine (Direct PCM AudioBuffer) ─────────
-  playAudioChunk(rawChunk, mimeType) {
+  async playAudioChunk(rawChunk, mimeType) {
     if (!rawChunk) return;
 
     // Normalize to ArrayBuffer — Socket.IO may deliver Uint8Array or Buffer on some platforms
@@ -225,7 +225,8 @@ class AudioEngine {
 
     if (arrayBuffer.byteLength < 2) return;
 
-    // Parse native sample rate from mimeType header (e.g. 'pcm/44100' or 'pcm/48000')
+    // Parse native sample rate from mimeType (e.g. 'pcm/44100' or 'pcm/48000')
+    // Phones (Android) use 48000Hz, laptops use 44100Hz — MUST match or audio plays at wrong pitch!
     let sampleRate = 44100;
     if (mimeType && typeof mimeType === 'string' && mimeType.startsWith('pcm/')) {
       const parsedRate = parseInt(mimeType.split('/')[1], 10);
@@ -233,8 +234,10 @@ class AudioEngine {
     }
 
     const audioCtx = this.initAudioContext();
+    // CRITICAL: Await resume — desktop Chrome suspends AudioContext until user gesture.
+    // Calling source.start() on a suspended context silently drops all audio frames!
     if (audioCtx.state === 'suspended') {
-      audioCtx.resume();
+      try { await audioCtx.resume(); } catch(_) {}
     }
 
     try {
