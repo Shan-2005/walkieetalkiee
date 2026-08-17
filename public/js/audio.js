@@ -4,9 +4,12 @@ class AudioEngine {
     this.audioCtx = null;
     this.mediaStream = null;
     this.micPromise = null;
-    this.mediaRecorder = null;
-    this.currentMimeType = '';
-    this.nextPlaybackTime = 0;
+    this.nextPCMPlaybackTime = 0;
+    this.isPCMRecording = false;
+    this.pcmSourceNode = null;
+    this.pcmWorkletNode = null;
+    this.pcmProcessorNode = null;
+    this._workletLoaded = false;
     this.setupIOSAudioUnlock();
   }
 
@@ -18,7 +21,6 @@ class AudioEngine {
       } else if (this.audioCtx.state === 'suspended') {
         this.audioCtx.resume();
       }
-
       try {
         if (this.audioCtx) {
           const buffer = this.audioCtx.createBuffer(1, 1, 22050);
@@ -115,7 +117,7 @@ class AudioEngine {
     }
   }
 
-  // ─── Socket.IO Voice Relay Streamer (PCM Direct Audio) ─────────────────────
+  // ─── Socket.IO Voice Relay Streamer (AudioWorklet + ScriptProcessor fallback) ───
   async startRecordingStream(onChunk) {
     this.stopRecordingStream();
 
@@ -127,25 +129,52 @@ class AudioEngine {
         await audioCtx.resume();
       }
 
+      const nativeSampleRate = audioCtx.sampleRate;
       this.pcmSourceNode = audioCtx.createMediaStreamSource(stream);
-      // 4096 buffer size gives ~92ms chunks at 44.1kHz / 48kHz — optimal for socket packets
-      const bufferSize = 4096;
-      this.pcmProcessorNode = (audioCtx.createScriptProcessor || audioCtx.createJavaScriptNode).call(audioCtx, bufferSize, 1, 1);
 
-      // CRITICAL: Anchor to window to prevent V8 Garbage Collection from stopping audio processing after 0.5s!
+      // ── Strategy 1: Modern AudioWorklet (Chrome 66+, Firefox 76+, desktop & mobile) ──
+      // Fixes: ScriptProcessorNode produces silence on Chrome desktop 127+
+      if (audioCtx.audioWorklet) {
+        try {
+          if (!this._workletLoaded) {
+            await audioCtx.audioWorklet.addModule('/js/pcm-processor.js');
+            this._workletLoaded = true;
+          }
+          this.pcmWorkletNode = new AudioWorkletNode(audioCtx, 'pcm-capture');
+
+          // Pin to window to prevent V8 GC from destroying the node mid-transmission
+          window._activePCMWorklet = this.pcmWorkletNode;
+          window._activePCMSource = this.pcmSourceNode;
+
+          this.pcmWorkletNode.port.onmessage = (event) => {
+            if (this.isPCMRecording && typeof onChunk === 'function') {
+              onChunk(event.data, `pcm/${nativeSampleRate}`);
+            }
+          };
+
+          this.pcmSourceNode.connect(this.pcmWorkletNode);
+          this.pcmWorkletNode.connect(audioCtx.destination);
+          this.isPCMRecording = true;
+          console.log(`[AudioEngine] ✅ AudioWorklet PCM started (${nativeSampleRate} Hz)`);
+          return;
+        } catch(workletErr) {
+          console.warn('[AudioEngine] AudioWorklet unavailable, using ScriptProcessor:', workletErr.message);
+        }
+      }
+
+      // ── Strategy 2: ScriptProcessorNode fallback (iOS Safari, older browsers) ──
+      const bufferSize = 4096;
+      this.pcmProcessorNode = audioCtx.createScriptProcessor(bufferSize, 1, 1);
       window._activePCMProcessor = this.pcmProcessorNode;
       window._activePCMSource = this.pcmSourceNode;
-
-      const nativeSampleRate = audioCtx.sampleRate;
 
       this.pcmProcessorNode.onaudioprocess = (e) => {
         if (this.isPCMRecording && typeof onChunk === 'function') {
           const float32Data = e.inputBuffer.getChannelData(0);
-          // Convert Float32 [-1.0, 1.0] to Int16 [-32768, 32767] for 50% bandwidth optimization
           const int16Array = new Int16Array(float32Data.length);
           for (let i = 0; i < float32Data.length; i++) {
             const s = Math.max(-1, Math.min(1, float32Data[i]));
-            int16Array[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
+            int16Array[i] = s < 0 ? s * 32768 : s * 32767;
           }
           onChunk(int16Array.buffer, `pcm/${nativeSampleRate}`);
         }
@@ -154,44 +183,49 @@ class AudioEngine {
       this.pcmSourceNode.connect(this.pcmProcessorNode);
       this.pcmProcessorNode.connect(audioCtx.destination);
       this.isPCMRecording = true;
-      console.log(`[AudioEngine] Direct PCM Streamer started (${nativeSampleRate} Hz, 4096 buffer)`);
+      console.log(`[AudioEngine] ✅ ScriptProcessor PCM started (${nativeSampleRate} Hz)`);
     } catch(err) {
-      console.error('[AudioEngine] PCM Streamer failed to start:', err);
+      console.error('[AudioEngine] PCM Streamer failed:', err);
     }
   }
 
   stopRecordingStream() {
     this.isPCMRecording = false;
+    if (this.pcmWorkletNode) {
+      try { this.pcmWorkletNode.disconnect(); } catch(_) {}
+      this.pcmWorkletNode = null;
+      window._activePCMWorklet = null;
+    }
     if (this.pcmProcessorNode) {
       try { this.pcmProcessorNode.disconnect(); } catch(_) {}
       this.pcmProcessorNode = null;
+      window._activePCMProcessor = null;
     }
     if (this.pcmSourceNode) {
       try { this.pcmSourceNode.disconnect(); } catch(_) {}
       this.pcmSourceNode = null;
+      window._activePCMSource = null;
     }
-    window._activePCMProcessor = null;
-    window._activePCMSource = null;
-    console.log('[AudioEngine] Direct PCM Streamer stopped.');
+    console.log('[AudioEngine] PCM Streamer stopped.');
   }
 
-  // ─── Socket.IO Voice Relay Playback Engine (Direct PCM AudioBuffer) ─────
+  // ─── Socket.IO Voice Relay Playback Engine (Direct PCM AudioBuffer) ─────────
   playAudioChunk(rawChunk, mimeType) {
     if (!rawChunk) return;
 
+    // Normalize to ArrayBuffer — Socket.IO may deliver Uint8Array or Buffer on some platforms
     let arrayBuffer;
     if (rawChunk instanceof ArrayBuffer) {
       arrayBuffer = rawChunk;
     } else if (ArrayBuffer.isView(rawChunk)) {
       arrayBuffer = rawChunk.buffer.slice(rawChunk.byteOffset, rawChunk.byteOffset + rawChunk.byteLength);
-    } else if (rawChunk && rawChunk.buffer) {
-      arrayBuffer = rawChunk.buffer;
     } else {
       return;
     }
 
     if (arrayBuffer.byteLength < 2) return;
 
+    // Parse native sample rate from mimeType header (e.g. 'pcm/44100' or 'pcm/48000')
     let sampleRate = 44100;
     if (mimeType && typeof mimeType === 'string' && mimeType.startsWith('pcm/')) {
       const parsedRate = parseInt(mimeType.split('/')[1], 10);
@@ -218,7 +252,7 @@ class AudioEngine {
       sourceNode.connect(audioCtx.destination);
 
       const currentTime = audioCtx.currentTime;
-      // 60ms jitter cushion prevents micro-stutters and buffer gaps
+      // 60ms initial jitter buffer prevents underrun gaps on first chunk
       if (!this.nextPCMPlaybackTime || this.nextPCMPlaybackTime < currentTime) {
         this.nextPCMPlaybackTime = currentTime + 0.06;
       }
@@ -226,7 +260,7 @@ class AudioEngine {
       sourceNode.start(this.nextPCMPlaybackTime);
       this.nextPCMPlaybackTime += audioBuffer.duration;
     } catch(err) {
-      console.warn('[AudioEngine] PCM chunk playback error:', err);
+      console.warn('[AudioEngine] Playback error:', err);
     }
   }
 
