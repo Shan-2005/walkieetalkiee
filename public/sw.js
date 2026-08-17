@@ -1,15 +1,16 @@
-const CACHE_NAME = 'robofest-walkie-v6.0';
+const CACHE_NAME = 'robofest-walkie-v3.1';
 const ASSETS = [
   '/',
   '/index.html',
-  '/css/styles.css?v=6.0',
-  '/js/app.js?v=6.0',
-  '/js/socket.js?v=6.0',
-  '/js/audio.js?v=6.0',
-  '/js/webrtc.js?v=6.0',
-  '/js/ptt.js?v=6.0',
-  '/js/channels.js?v=6.0',
-  '/js/ui.js?v=6.0',
+  '/css/styles.css',
+  '/js/app.js',
+  '/js/socket.js',
+  '/js/audio.js',
+  '/js/webrtc.js',
+  '/js/ptt.js',
+  '/js/channels.js',
+  '/js/ui.js',
+  '/js/pcm-processor.js',
   '/assets/walkie-icon.png',
   '/manifest.json'
 ];
