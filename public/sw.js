@@ -1,4 +1,4 @@
-const CACHE_NAME = 'robofest-walkie-v6.3';
+const CACHE_NAME = 'robofest-walkie-v6.4';
 const ASSETS = [
   '/',
   '/index.html',

@@ -44,8 +44,33 @@ class AudioEngine {
   enableBackgroundKeepAlive() {
     if (!this._silentAudioEl) {
       try {
-        const silentWav = "data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=";
-        const audio = new Audio(silentWav);
+        // 1-second 8kHz mono WAV with actual (near-zero) PCM samples.
+        // IMPORTANT: Must NOT be an empty/zero-byte data chunk — Chrome & Safari
+        // detect empty audio and refuse to treat the tab as "actively playing audio",
+        // allowing the OS to freeze it. This WAV has 8000 real samples at near-zero gain.
+        const buildSilentWav = () => {
+          const sampleRate = 8000;
+          const numSamples = sampleRate; // 1 second
+          const buf = new ArrayBuffer(44 + numSamples * 2);
+          const view = new DataView(buf);
+          const write = (o, s) => { for (let i = 0; i < s.length; i++) view.setUint8(o + i, s.charCodeAt(i)); };
+          write(0, 'RIFF'); view.setUint32(4, 36 + numSamples * 2, true);
+          write(8, 'WAVE'); write(12, 'fmt ');
+          view.setUint32(16, 16, true); view.setUint16(20, 1, true);  // PCM
+          view.setUint16(22, 1, true);                                 // mono
+          view.setUint32(24, sampleRate, true);
+          view.setUint32(28, sampleRate * 2, true);                    // byte rate
+          view.setUint16(32, 2, true); view.setUint16(34, 16, true);   // block align, bits
+          write(36, 'data'); view.setUint32(40, numSamples * 2, true);
+          // Write a very low-amplitude sine wave (inaudible, but non-zero)
+          for (let i = 0; i < numSamples; i++) {
+            const val = Math.sin(2 * Math.PI * 20 * i / sampleRate) * 8; // 20Hz @ amplitude 8
+            view.setInt16(44 + i * 2, Math.round(val), true);
+          }
+          return URL.createObjectURL(new Blob([buf], { type: 'audio/wav' }));
+        };
+
+        const audio = new Audio(buildSilentWav());
         audio.loop = true;
         audio.volume = 0.01;
         this._silentAudioEl = audio;
