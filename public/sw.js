@@ -53,3 +53,10 @@ self.addEventListener('fetch', (event) => {
     })
   );
 });
+
+// Activate immediately when app.js sends SKIP_WAITING (triggered on new deploy detection)
+self.addEventListener('message', (event) => {
+  if (event.data && event.data.type === 'SKIP_WAITING') {
+    self.skipWaiting();
+  }
+});

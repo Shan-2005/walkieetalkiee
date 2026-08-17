@@ -9,12 +9,47 @@ class AppController {
   init() {
     console.log('[App] Initializing Robofest 2.0 Walkie-Talkie App...');
 
-    // Register Service Worker for PWA support
+    // Register Service Worker for PWA support + Auto-Update Detection
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.register('/sw.js').then((reg) => {
-        console.log('[PWA] ServiceWorker registered with scope:', reg.scope);
+        console.log('[PWA] ServiceWorker registered:', reg.scope);
+
+        // Notify user when a new deploy is ready
+        const notifyUpdate = () => {
+          if (window.uiController) {
+            window.uiController.showToast('🔄 New version available! Tap here to update.', 'info');
+          }
+        };
+
+        // New SW already waiting when page loads (had old tab open during deploy)
+        if (reg.waiting) {
+          reg.waiting.postMessage({ type: 'SKIP_WAITING' });
+        }
+
+        // New SW installs while app is open
+        reg.addEventListener('updatefound', () => {
+          const newWorker = reg.installing;
+          if (newWorker) {
+            newWorker.addEventListener('statechange', () => {
+              if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                newWorker.postMessage({ type: 'SKIP_WAITING' });
+                notifyUpdate();
+              }
+            });
+          }
+        });
+
+        // Periodic background check every 5 minutes (catches new deploys while app is active)
+        setInterval(() => reg.update(), 5 * 60 * 1000);
+
       }).catch((err) => {
         console.warn('[PWA] ServiceWorker registration failed:', err);
+      });
+
+      // When new SW takes over, reload all tabs silently to run the latest code
+      navigator.serviceWorker.addEventListener('controllerchange', () => {
+        console.log('[PWA] New SW activated — reloading for latest version.');
+        window.location.reload();
       });
     }
 
