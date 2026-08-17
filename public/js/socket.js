@@ -8,14 +8,20 @@ class SocketManager {
   }
 
   connect() {
-    if (this.socket) return;
+    if (this.socket) {
+      if (!this.socket.connected) {
+        console.log('[Socket] Reconnecting existing socket instance...');
+        this.socket.connect();
+      }
+      return;
+    }
     
     // Connect to server origin
     this.socket = io({
       reconnection: true,
       reconnectionAttempts: Infinity,
       reconnectionDelay: 500,
-      reconnectionDelayMax: 3000,
+      reconnectionDelayMax: 2000,
       timeout: 10000,
       transports: ['websocket', 'polling']
     });
@@ -52,6 +58,20 @@ class SocketManager {
         this.checkAndReconnect();
       }
     });
+
+    // Persistent Heartbeat Watchdog Loop (every 3 seconds)
+    // Prevents mobile OS TCP socket idle drops & auto-reconnects instantly if sleep occurs
+    if (this._watchdogInterval) clearInterval(this._watchdogInterval);
+    this._watchdogInterval = setInterval(() => {
+      if (this.lastUser) {
+        if (!this.socket || !this.socket.connected) {
+          console.warn('[Socket Watchdog] Socket disconnected — triggering forced reconnection...');
+          this.checkAndReconnect();
+        } else {
+          this.socket.emit('ping:keepalive');
+        }
+      }
+    }, 3000);
 
     this.socket.on('stats:update', (data) => {
       window.channelManager.updateStats(data);

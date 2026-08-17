@@ -162,6 +162,10 @@ function broadcastStats() {
 io.on('connection', (socket) => {
   console.log(`[Socket] Connected: ${socket.id}`);
 
+  socket.on('ping:keepalive', () => {
+    socket.emit('pong:keepalive', { timestamp: Date.now() });
+  });
+
   socket.on('user:join', (payload, callback) => {
     const { name, role } = payload || {};
     const userName = (name && name.trim()) ? name.trim() : `User-${socket.id.substring(0, 4)}`;

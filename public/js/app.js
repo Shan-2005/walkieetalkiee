@@ -331,6 +331,33 @@ class AppController {
   }
 
   setupSocketListeners() {
+    window.socketManager.on('connect', () => {
+      console.log('[App] Socket connected / reconnected successfully.');
+      const badge = document.querySelector('.online-badge');
+      if (badge) {
+        badge.style.background = 'rgba(74,222,128,0.15)';
+        badge.style.borderColor = 'rgba(74,222,128,0.3)';
+        badge.style.color = '#4ADE80';
+        badge.innerHTML = '<span class="online-dot" style="background:#4ADE80;"></span> Online';
+      }
+      if (this.wasDisconnected) {
+        this.wasDisconnected = false;
+        window.uiController.showToast('🟢 Connection restored! Back online.', 'info');
+      }
+    });
+
+    window.socketManager.on('disconnect', () => {
+      console.warn('[App] Socket connection lost.');
+      this.wasDisconnected = true;
+      const badge = document.querySelector('.online-badge');
+      if (badge) {
+        badge.style.background = 'rgba(239,68,68,0.15)';
+        badge.style.borderColor = 'rgba(239,68,68,0.3)';
+        badge.style.color = '#EF4444';
+        badge.innerHTML = '<span class="online-dot" style="background:#EF4444;"></span> Reconnecting...';
+      }
+    });
+
     window.socketManager.on('stats:update', () => {
       window.uiController.renderChannelGrid();
     });

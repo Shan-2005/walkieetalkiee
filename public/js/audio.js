@@ -40,43 +40,64 @@ class AudioEngine {
     window.addEventListener('click', unlock, { passive: true });
   }
 
-  // Keeps mobile CPU & WebSockets active when screen locks using silent audio + MediaSession API
+  // Keeps mobile CPU & WebSockets active when screen locks using silent audio + MediaSession API + WebAudio pipeline
   enableBackgroundKeepAlive() {
-    if (this._silentAudioEl) {
-      if (this._silentAudioEl.paused) {
-        this._silentAudioEl.play().catch(() => {});
+    if (!this._silentAudioEl) {
+      try {
+        const silentWav = "data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=";
+        const audio = new Audio(silentWav);
+        audio.loop = true;
+        audio.volume = 0.01;
+        this._silentAudioEl = audio;
+
+        const playPromise = audio.play();
+        if (playPromise !== undefined) {
+          playPromise.catch(err => console.warn('[AudioEngine] Background keep-alive waiting for click:', err.message));
+        }
+
+        if ('mediaSession' in navigator) {
+          navigator.mediaSession.metadata = new MediaMetadata({
+            title: "Robofest Walkie-Talkie (Live Network)",
+            artist: "Continuous Background Voice Service",
+            album: "Robofest 2.0 PTT Network",
+            artwork: [{ src: '/assets/walkie-icon.png', sizes: '512x512', type: 'image/png' }]
+          });
+          navigator.mediaSession.playbackState = 'playing';
+          navigator.mediaSession.setActionHandler('play', () => {
+            this.initAudioContext();
+            if (this._silentAudioEl) this._silentAudioEl.play().catch(() => {});
+          });
+          navigator.mediaSession.setActionHandler('pause', () => {});
+        }
+        console.log('[AudioEngine] 🔊 Background HTML5 keep-alive activated.');
+      } catch(e) {
+        console.warn('[AudioEngine] Background keep-alive setup error:', e);
       }
-      return;
+    } else if (this._silentAudioEl.paused) {
+      this._silentAudioEl.play().catch(() => {});
     }
+
+    // WebAudio continuous sub-audible hardware pipeline keep-alive (keeps native OS audio driver & CPU active 24/7)
     try {
-      const silentWav = "data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=";
-      const audio = new Audio(silentWav);
-      audio.loop = true;
-      audio.volume = 0.01;
-      this._silentAudioEl = audio;
-
-      const playPromise = audio.play();
-      if (playPromise !== undefined) {
-        playPromise.catch(err => console.warn('[AudioEngine] Background keep-alive waiting for user click:', err.message));
+      const ctx = this.initAudioContext();
+      if (ctx && ctx.state === 'suspended') {
+        ctx.resume().catch(() => {});
       }
-
-      if ('mediaSession' in navigator) {
-        navigator.mediaSession.metadata = new MediaMetadata({
-          title: "Robofest Walkie-Talkie (Active Channel)",
-          artist: "Live Voice Stream",
-          album: "Robofest 2.0 PTT Network",
-          artwork: [{ src: '/assets/walkie-icon.png', sizes: '512x512', type: 'image/png' }]
-        });
-        navigator.mediaSession.playbackState = 'playing';
-        navigator.mediaSession.setActionHandler('play', () => {
-          this.initAudioContext();
-          if (this._silentAudioEl) this._silentAudioEl.play().catch(() => {});
-        });
-        navigator.mediaSession.setActionHandler('pause', () => {});
+      if (ctx && !this._keepAliveOsc) {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(15, ctx.currentTime);     // 15 Hz sub-audible
+        gain.gain.setValueAtTime(0.00001, ctx.currentTime);     // completely silent (0.00001 gain)
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start();
+        this._keepAliveOsc = osc;
+        this._keepAliveGain = gain;
+        console.log('[AudioEngine] 🔊 WebAudio sub-audible continuous hardware keep-alive active.');
       }
-      console.log('[AudioEngine] 🔊 Background keep-alive activated (screen-lock protection).');
     } catch(e) {
-      console.warn('[AudioEngine] Background keep-alive setup error:', e);
+      console.warn('[AudioEngine] Keep-alive oscillator error:', e);
     }
   }
 
