@@ -422,8 +422,9 @@ io.on('connection', (socket) => {
       // Master broadcast to everyone except sender
       socket.broadcast.emit('audio:stream', audioPayload);
     } else {
-      // Channel broadcast to room members except sender
+      // Channel broadcast to room members except sender + receiver stations
       socket.to(targetChannel).emit('audio:stream', audioPayload);
+      socket.to('all_subscribed').emit('audio:stream', audioPayload);
     }
   });
 

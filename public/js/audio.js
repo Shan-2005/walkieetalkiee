@@ -155,39 +155,95 @@ class AudioEngine {
     console.log('[AudioEngine] Socket Relay MediaRecorder stopped.');
   }
 
-  // ─── Socket.IO Voice Relay Playback Engine ──────────────────────────────
-  playAudioChunk(arrayBuffer) {
-    if (!arrayBuffer || arrayBuffer.byteLength === 0) return;
+  // ─── Socket.IO Voice Relay Playback Engine (MediaSource Stream) ─────────
+  initRelayPlayer(mimeType) {
+    this.stopRelayPlayer();
 
-    this.initAudioContext();
-    if (this.audioCtx.state === 'suspended') {
-      this.audioCtx.resume();
+    const codec = mimeType || 'audio/webm; codecs="opus"';
+    let supportedMime = 'audio/webm; codecs="opus"';
+
+    if (MediaSource.isTypeSupported && MediaSource.isTypeSupported(codec)) {
+      supportedMime = codec;
+    } else if (MediaSource.isTypeSupported && MediaSource.isTypeSupported('audio/webm')) {
+      supportedMime = 'audio/webm';
+    } else if (MediaSource.isTypeSupported && MediaSource.isTypeSupported('audio/mp4')) {
+      supportedMime = 'audio/mp4';
     }
 
-    const bufferCopy = arrayBuffer.slice(0);
-    this.audioCtx.decodeAudioData(bufferCopy, (decodedBuffer) => {
-      try {
-        const source = this.audioCtx.createBufferSource();
-        source.buffer = decodedBuffer;
-        source.connect(this.audioCtx.destination);
+    try {
+      this.relayMediaSource = new MediaSource();
+      this.relayAudioEl = document.createElement('audio');
+      this.relayAudioEl.autoplay = true;
+      this.relayAudioEl.playsInline = true;
+      this.relayAudioEl.src = URL.createObjectURL(this.relayMediaSource);
+      this.relayChunkQueue = [];
+      this.sourceBuffer = null;
 
-        const currentTime = this.audioCtx.currentTime;
-        if (this.nextPlaybackTime < currentTime) {
-          this.nextPlaybackTime = currentTime + 0.05; // 50ms initial jitter cushion
+      this.relayMediaSource.addEventListener('sourceopen', () => {
+        try {
+          this.sourceBuffer = this.relayMediaSource.addSourceBuffer(supportedMime);
+          this.sourceBuffer.mode = 'sequence';
+
+          const processQueue = () => {
+            if (this.relayChunkQueue.length > 0 && this.sourceBuffer && !this.sourceBuffer.updating) {
+              const nextChunk = this.relayChunkQueue.shift();
+              try {
+                this.sourceBuffer.appendBuffer(nextChunk);
+              } catch(e) {
+                console.warn('[AudioEngine] SourceBuffer append error:', e);
+              }
+            }
+          };
+
+          this.sourceBuffer.addEventListener('updateend', processQueue);
+          processQueue();
+        } catch(e) {
+          console.warn('[AudioEngine] MediaSource addSourceBuffer error:', e);
         }
+      });
 
-        source.start(this.nextPlaybackTime);
-        this.nextPlaybackTime += decodedBuffer.duration;
+      this.relayAudioEl.play().catch(e => console.warn('[AudioEngine] Relay audio play failed:', e));
+    } catch(e) {
+      console.error('[AudioEngine] Failed to init MediaSource relay player:', e);
+    }
+  }
+
+  playAudioChunk(arrayBuffer, mimeType) {
+    if (!arrayBuffer || arrayBuffer.byteLength === 0) return;
+
+    if (!this.relayMediaSource || this.relayMediaSource.readyState === 'closed') {
+      this.initRelayPlayer(mimeType);
+    }
+
+    if (this.sourceBuffer && !this.sourceBuffer.updating) {
+      try {
+        this.sourceBuffer.appendBuffer(arrayBuffer);
       } catch (err) {
-        console.warn('[AudioEngine] Buffer source playback failed:', err);
+        this.relayChunkQueue.push(arrayBuffer);
       }
-    }, (err) => {
-      console.warn('[AudioEngine] Audio chunk decode failed:', err);
-    });
+    } else {
+      if (!this.relayChunkQueue) this.relayChunkQueue = [];
+      this.relayChunkQueue.push(arrayBuffer);
+    }
+
+    if (this.relayAudioEl && this.relayAudioEl.paused) {
+      this.relayAudioEl.play().catch(() => {});
+    }
+  }
+
+  stopRelayPlayer() {
+    this.relayChunkQueue = [];
+    if (this.relayAudioEl) {
+      try { this.relayAudioEl.pause(); } catch(_) {}
+      try { URL.revokeObjectURL(this.relayAudioEl.src); } catch(_) {}
+      this.relayAudioEl = null;
+    }
+    this.relayMediaSource = null;
+    this.sourceBuffer = null;
   }
 
   resetPlaybackQueue() {
-    this.nextPlaybackTime = 0;
+    this.stopRelayPlayer();
   }
 }
 

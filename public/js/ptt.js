@@ -12,7 +12,7 @@ class PTTController {
     this._state = 'idle';
 
     this.isToggleMode = false;
-    this.transportMode = 'socket'; // Default to Socket.IO relay (100% College Wi-Fi safe)
+    this.transportMode = 'auto'; // Auto mode: tries WebRTC P2P + falls back to Socket.IO relay
     this.currentChannelId = null;
     this.pttButtonEl = null;
 
