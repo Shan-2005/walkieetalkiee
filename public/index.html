@@ -246,7 +246,7 @@
     <!-- PWA Install Modal -->
     <div id="pwa-install-modal" class="modal-overlay hidden">
       <div class="modal-card">
-        <div class="install-header" style="display:flex; align-items:center; gap:12px; margin-bottom:16px;">
+        <div class="install-header" style="display:flex; align-items:center; gap:12px; margin-bottom:14px;">
           <div style="width:48px; height:48px; border-radius:12px; overflow:hidden; border:1px solid var(--border); flex-shrink:0;">
             <img src="/assets/walkie-icon.png" alt="App Icon" style="width:100%; height:100%; object-fit:cover;">
           </div>
@@ -255,8 +255,33 @@
             <p style="margin:4px 0 0; font-size:12px; color:var(--text-2);">Install Robofest 2.0 on your phone's home screen for fast 1-tap PTT access!</p>
           </div>
         </div>
+
+        <div id="pwa-manual-instructions" class="hidden" style="background:rgba(255,255,255,0.04); border:1px solid var(--border); border-radius:8px; padding:12px; font-size:12px; text-align:left; margin-bottom:16px;">
+          <div id="ios-instructions" class="hidden">
+            <div style="display:flex; align-items:center; gap:6px; color:#FACC15; font-weight:700; margin-bottom:6px;">
+              <span class="material-symbols-rounded" style="font-size:16px;">ios_share</span>
+              <span>iOS / Safari Installation</span>
+            </div>
+            <ol style="margin:0 0 0 18px; padding:0; line-height:1.6; color:var(--text-sub);">
+              <li>Tap the <strong>Share button</strong> in Safari bottom bar.</li>
+              <li>Scroll down and select <strong>Add to Home Screen</strong>.</li>
+              <li>Tap <strong>Add</strong> in top-right corner.</li>
+            </ol>
+          </div>
+          <div id="android-instructions" class="hidden">
+            <div style="display:flex; align-items:center; gap:6px; color:#FACC15; font-weight:700; margin-bottom:6px;">
+              <span class="material-symbols-rounded" style="font-size:16px;">more_vert</span>
+              <span>Android / Chrome Installation</span>
+            </div>
+            <ol style="margin:0 0 0 18px; padding:0; line-height:1.6; color:var(--text-sub);">
+              <li>Tap the <strong>3-dots menu (⋮)</strong> at top right.</li>
+              <li>Tap <strong>Install app</strong> or <strong>Add to Home Screen</strong>.</li>
+            </ol>
+          </div>
+        </div>
+
         <div class="modal-actions" style="display:flex; justify-content:flex-end; gap:8px;">
-          <button id="pwa-dismiss-btn" class="modal-btn btn-secondary">Not Now</button>
+          <button id="pwa-dismiss-btn" class="modal-btn btn-secondary">Close</button>
           <button id="pwa-install-btn" class="modal-btn btn-primary" style="display:flex; align-items:center; gap:4px;">
             <span class="material-symbols-rounded" style="font-size:16px;">download</span>
             Install Now

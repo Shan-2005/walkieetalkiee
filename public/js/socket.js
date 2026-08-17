@@ -14,7 +14,9 @@ class SocketManager {
     this.socket = io({
       reconnection: true,
       reconnectionAttempts: Infinity,
-      reconnectionDelay: 1000,
+      reconnectionDelay: 500,
+      reconnectionDelayMax: 3000,
+      timeout: 10000,
       transports: ['websocket', 'polling']
     });
 
@@ -23,7 +25,7 @@ class SocketManager {
       this.currentUserId = this.socket.id;
       console.log('[Socket] Connected to server:', this.socket.id);
 
-      // Seamless auto-reconnect on mobile Wi-Fi / cellular drops
+      // Seamless auto-reconnect on mobile Wi-Fi / cellular drops or screen unlock
       if (this.lastUser) {
         this.socket.emit('user:join', this.lastUser, () => {
           if (this.lastChannel) {
@@ -41,6 +43,14 @@ class SocketManager {
       if (window.pttController) window.pttController.stopPTT();
       if (window.webrtcManager) window.webrtcManager.closeAll();
       this.emitLocal('disconnect', { reason });
+    });
+
+    // Instant reconnection on mobile network switch or phone unlock
+    window.addEventListener('online', () => this.checkAndReconnect());
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') {
+        this.checkAndReconnect();
+      }
     });
 
     this.socket.on('stats:update', (data) => {

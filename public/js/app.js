@@ -68,6 +68,37 @@ class AppController {
     this.loadSavedProfile();
     this.bindEvents();
     this.setupSocketListeners();
+    this.setupWakeLockAndBackgroundKeepAlive();
+  }
+
+  setupWakeLockAndBackgroundKeepAlive() {
+    this.wakeLock = null;
+
+    const requestWakeLock = async () => {
+      if ('wakeLock' in navigator && this.currentChannel) {
+        try {
+          this.wakeLock = await navigator.wakeLock.request('screen');
+          console.log('[App] 💡 Screen Wake Lock acquired.');
+        } catch (err) {
+          console.warn('[App] Screen Wake Lock error:', err.message);
+        }
+      }
+    };
+
+    document.addEventListener('visibilitychange', async () => {
+      if (document.visibilityState === 'visible') {
+        console.log('[App] 📱 Foreground restored — resuming audio context & session...');
+        if (window.audioEngine) {
+          window.audioEngine.initAudioContext();
+          window.audioEngine.enableBackgroundKeepAlive();
+        }
+        if (this.currentChannel && requestWakeLock) {
+          await requestWakeLock();
+        }
+      }
+    });
+
+    this.requestWakeLock = requestWakeLock;
   }
 
   loadSavedProfile() {
@@ -195,17 +226,28 @@ class AppController {
     const pwaDismissBtn = document.getElementById('pwa-dismiss-btn');
     const pwaHeaderBtn = document.getElementById('pwa-install-header-btn');
 
+    const showManualInstructions = () => {
+      const manualBox = document.getElementById('pwa-manual-instructions');
+      const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+      const iosDiv = document.getElementById('ios-instructions');
+      const androidDiv = document.getElementById('android-instructions');
+      if (manualBox) manualBox.classList.remove('hidden');
+      if (isIOS && iosDiv) iosDiv.classList.remove('hidden');
+      if (!isIOS && androidDiv) androidDiv.classList.remove('hidden');
+    };
+
     if (pwaInstallBtn) {
       pwaInstallBtn.addEventListener('click', async () => {
-        const installModal = document.getElementById('pwa-install-modal');
-        if (installModal) installModal.classList.add('hidden');
         if (this.deferredPrompt) {
+          const installModal = document.getElementById('pwa-install-modal');
+          if (installModal) installModal.classList.add('hidden');
           this.deferredPrompt.prompt();
           const choice = await this.deferredPrompt.userChoice;
           console.log('[PWA] User choice:', choice.outcome);
           this.deferredPrompt = null;
         } else {
-          window.uiController.showToast('To install: Tap browser menu (⋮ or Share) -> Add to Home Screen', 'info');
+          showManualInstructions();
+          window.uiController.showToast('Follow the step-by-step guide below to install.', 'info');
         }
       });
     }
@@ -221,6 +263,9 @@ class AppController {
     if (pwaHeaderBtn) {
       pwaHeaderBtn.addEventListener('click', () => {
         const installModal = document.getElementById('pwa-install-modal');
+        if (!this.deferredPrompt) {
+          showManualInstructions();
+        }
         if (installModal) installModal.classList.remove('hidden');
       });
     }
@@ -391,6 +436,14 @@ class AppController {
     this.currentChannel = channel;
     window.pttController.setChannel(channelId);
 
+    // Activate background silent audio keep-alive & screen wake lock
+    if (window.audioEngine) {
+      window.audioEngine.enableBackgroundKeepAlive();
+    }
+    if (this.requestWakeLock) {
+      this.requestWakeLock();
+    }
+
     // Re-trigger/ensure volume probe is active on channel join user gesture
     window.pttController.activateVolumeProbe();
 
@@ -411,6 +464,10 @@ class AppController {
       window.socketManager.leaveChannel();
       this.currentChannel = null;
       window.pttController.setChannel(null);
+    }
+    if (this.wakeLock) {
+      try { this.wakeLock.release(); } catch(_) {}
+      this.wakeLock = null;
     }
     window.uiController.renderChannelGrid();
     window.uiController.showScreen('channel-list-screen');

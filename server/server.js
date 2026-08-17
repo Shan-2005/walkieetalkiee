@@ -16,6 +16,8 @@ const io = new Server(server, {
     origin: '*',
     methods: ['GET', 'POST']
   },
+  pingInterval: 10000,  // Ping client every 10s
+  pingTimeout: 60000,   // Allow up to 60s ping timeout for backgrounded/locked mobile devices
   maxHttpBufferSize: 1e7 // 10MB limit for binary audio payloads
 });
 

@@ -11,6 +11,7 @@ class AudioEngine {
     this.pcmWorkletNode = null;
     this.pcmProcessorNode = null;
     this._workletLoaded = false;
+    this._silentAudioEl = null;
     this.setupIOSAudioUnlock();
   }
 
@@ -22,6 +23,7 @@ class AudioEngine {
       } else if (this.audioCtx.state === 'suspended') {
         this.audioCtx.resume();
       }
+      this.enableBackgroundKeepAlive();
       try {
         if (this.audioCtx) {
           const buffer = this.audioCtx.createBuffer(1, 1, 22050);
@@ -36,6 +38,46 @@ class AudioEngine {
     window.addEventListener('touchstart', unlock, { passive: true });
     window.addEventListener('touchend', unlock, { passive: true });
     window.addEventListener('click', unlock, { passive: true });
+  }
+
+  // Keeps mobile CPU & WebSockets active when screen locks using silent audio + MediaSession API
+  enableBackgroundKeepAlive() {
+    if (this._silentAudioEl) {
+      if (this._silentAudioEl.paused) {
+        this._silentAudioEl.play().catch(() => {});
+      }
+      return;
+    }
+    try {
+      const silentWav = "data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=";
+      const audio = new Audio(silentWav);
+      audio.loop = true;
+      audio.volume = 0.01;
+      this._silentAudioEl = audio;
+
+      const playPromise = audio.play();
+      if (playPromise !== undefined) {
+        playPromise.catch(err => console.warn('[AudioEngine] Background keep-alive waiting for user click:', err.message));
+      }
+
+      if ('mediaSession' in navigator) {
+        navigator.mediaSession.metadata = new MediaMetadata({
+          title: "Robofest Walkie-Talkie (Active Channel)",
+          artist: "Live Voice Stream",
+          album: "Robofest 2.0 PTT Network",
+          artwork: [{ src: '/assets/walkie-icon.png', sizes: '512x512', type: 'image/png' }]
+        });
+        navigator.mediaSession.playbackState = 'playing';
+        navigator.mediaSession.setActionHandler('play', () => {
+          this.initAudioContext();
+          if (this._silentAudioEl) this._silentAudioEl.play().catch(() => {});
+        });
+        navigator.mediaSession.setActionHandler('pause', () => {});
+      }
+      console.log('[AudioEngine] 🔊 Background keep-alive activated (screen-lock protection).');
+    } catch(e) {
+      console.warn('[AudioEngine] Background keep-alive setup error:', e);
+    }
   }
 
   initAudioContext() {
